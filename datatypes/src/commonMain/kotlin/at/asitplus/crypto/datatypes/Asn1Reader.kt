@@ -2,6 +2,18 @@ package at.asitplus.crypto.datatypes
 
 import kotlinx.datetime.Instant
 
+class Asn1Reader(input: ByteArray) {
+
+    var rest = input
+
+    fun <T> read(tag: Int, func: (ByteArray) -> T?): T {
+        val past = read(rest, tag, func)
+        rest = past.second
+        return past.first
+    }
+
+}
+
 fun <T> read(input: ByteArray, tag: Int, func: (ByteArray) -> T?): Pair<T, ByteArray> {
     val tlv = input.readTlv()
     if (tlv.tag != tag.toByte()) throw IllegalArgumentException("Expected tag $tag, got ${tlv.tag}")

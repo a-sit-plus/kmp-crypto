@@ -53,25 +53,24 @@ data class TbsCertificate(
     companion object {
         fun decodeFromDer(encoded: ByteArray): TbsCertificate? {
             return runCatching {
-                var rest = encoded
-                val version = read(rest, 0xA0, ::readInt).also { rest = it.second }
-                val serialNumber = read(rest, 0x02, Long.Companion::decodeFromDer).also { rest = it.second }
-                val sigAlg = read(rest, 0x30, JwsAlgorithm.Companion::decodeFromDer).also { rest = it.second }
-                val issuerCommonName = read(rest, 0x30, ::decodeIssuerName).also { rest = it.second }
-                val timestamps = read(rest, 0x30, ::decodeTimestamps).also { rest = it.second }
-                val subjectCommonName = read(rest, 0x30, ::decodeIssuerName).also { rest = it.second }
-                val cryptoPublicKey =
-                    read(rest, 0x30, CryptoPublicKey.Ec.Companion::decodeFromDer).also { rest = it.second }
+                val reader = Asn1Reader(encoded)
+                val version = reader.read(0xA0, ::readInt)
+                val serialNumber = reader.read(0x02, Long.Companion::decodeFromDer)
+                val sigAlg = reader.read(0x30, JwsAlgorithm.Companion::decodeFromDer)
+                val issuerCommonName = reader.read(0x30, ::decodeIssuerName)
+                val timestamps = reader.read(0x30, ::decodeTimestamps)
+                val subjectCommonName = reader.read(0x30, ::decodeIssuerName)
+                val cryptoPublicKey = reader.read(0x30, CryptoPublicKey.Ec.Companion::decodeFromDer)
 
                 return TbsCertificate(
-                    version = version.first,
-                    serialNumber = serialNumber.first,
-                    signatureAlgorithm = sigAlg.first,
-                    issuerCommonName = issuerCommonName.first,
-                    validFrom = timestamps.first.first,
-                    validUntil = timestamps.first.second,
-                    subjectCommonName = subjectCommonName.first,
-                    publicKey = cryptoPublicKey.first,
+                    version = version,
+                    serialNumber = serialNumber,
+                    signatureAlgorithm = sigAlg,
+                    issuerCommonName = issuerCommonName,
+                    validFrom = timestamps.first,
+                    validUntil = timestamps.second,
+                    subjectCommonName = subjectCommonName,
+                    publicKey = cryptoPublicKey,
                 )
             }.getOrNull()
         }
@@ -151,14 +150,14 @@ data class X509Certificate(
         }
 
         private fun decodeFromDerInner(input: ByteArray): X509Certificate {
-            var rest = input
-            val tbs = read(rest, 0x30, TbsCertificate.Companion::decodeFromDer).also { rest = it.second }
-            val sigAlg = read(rest, 0x30, JwsAlgorithm.Companion::decodeFromDer).also { rest = it.second }
-            val signature = read(rest, 0x03, ::decodeBitstring).also { rest = it.second }
+            val reader = Asn1Reader(input)
+            val tbs = reader.read(0x30, TbsCertificate.Companion::decodeFromDer)
+            val sigAlg = reader.read(0x30, JwsAlgorithm.Companion::decodeFromDer)
+            val signature = reader.read(0x03, ::decodeBitstring)
             return X509Certificate(
-                tbsCertificate = tbs.first,
-                signatureAlgorithm = sigAlg.first,
-                signature = signature.first
+                tbsCertificate = tbs,
+                signatureAlgorithm = sigAlg,
+                signature = signature
             )
         }
 
