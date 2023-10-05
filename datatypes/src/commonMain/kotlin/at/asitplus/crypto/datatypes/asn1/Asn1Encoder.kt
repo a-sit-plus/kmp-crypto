@@ -100,8 +100,14 @@ private fun Instant.encodeToAsn1(): ByteArray {
     return asn1Tag(0x17, "$year$month$day$hour$minute${seconds}Z".encodeToByteArray())
 }
 
+fun JwsAlgorithm.Companion.decodeFromDer(input: ByteArray): JwsAlgorithm? {
+    if (input.contentEquals("2A8648CE3D040302".encodeToOid()))
+        return JwsAlgorithm.ES256
+    return null
+}
+
 private fun JwsAlgorithm.encodeToAsn1() = when (this) {
-    JwsAlgorithm.ES256 -> sequence { oid { "2A8648CE3D040302" } }
+    JwsAlgorithm.ES256 -> "2A8648CE3D040302".encodeToOid()
     else -> throw IllegalArgumentException("sigAlg: $this")
 }
 
@@ -109,10 +115,10 @@ fun CryptoPublicKey.encodeToAsn1() = when (this) {
     is CryptoPublicKey.Ec -> sequence {
         sequence {
             oid { "2A8648CE3D0201" }
-            when(curve) {
-                EcCurve.SECP_256_R_1 ->   oid { "2A8648CE3D030107" }
-                EcCurve.SECP_384_R_1 -> oid{"2B81040022"}
-                EcCurve.SECP_521_R_1 -> oid{"2B81040023"}
+            when (curve) {
+                EcCurve.SECP_256_R_1 -> oid { "2A8648CE3D030107" }
+                EcCurve.SECP_384_R_1 -> oid { "2B81040022" }
+                EcCurve.SECP_521_R_1 -> oid { "2B81040023" }
             }
 
         }
