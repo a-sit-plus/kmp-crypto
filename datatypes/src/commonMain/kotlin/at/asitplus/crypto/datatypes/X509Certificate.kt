@@ -81,4 +81,10 @@ data class X509Certificate(
         result = 31 * result + signature.contentHashCode()
         return result
     }
+
+    companion object {
+        fun deserialize(encoded: ByteArray): X509Certificate? {
+            return null
+        }
+    }
 }

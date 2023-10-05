@@ -1,7 +1,7 @@
 import at.asitplus.crypto.datatypes.*
 import at.asitplus.crypto.datatypes.asn1.JwsExtensions.ensureSize
-import at.asitplus.crypto.datatypes.io.MultibaseHelper
 import io.kotest.core.spec.style.FreeSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.matthewnelson.encoding.base16.Base16
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
@@ -37,9 +37,8 @@ class X509CertificateJvmTest : FreeSpec({
 
     "Certificates match" {
         val ecPublicKey = keyPair.public as ECPublicKey
-        val keyX = ecPublicKey.w.affineX.toByteArray().ensureSize(ecCurve.coordinateLengthBytes)
-        val keyY = ecPublicKey.w.affineY.toByteArray().ensureSize(ecCurve.coordinateLengthBytes)
-        val cryptoPublicKey = CryptoPublicKey.Ec(curve = ecCurve, x = keyX, y = keyY)
+        val cryptoPublicKey = CryptoPublicKey.Ec.fromJcaKey(ecPublicKey)
+        cryptoPublicKey.shouldNotBeNull()
 
         // create certificate with bouncycastle
         val notBeforeDate = Date.from(Instant.now())
@@ -88,6 +87,42 @@ class X509CertificateJvmTest : FreeSpec({
         val parsedFromKotlinCertificate =
             CertificateFactory.getInstance("X.509").generateCertificate(kotlinEncoded.inputStream())
         parsedFromKotlinCertificate.verify(keyPair.public)
+    }
+
+    "Certificate can be parsed" {
+        val ecPublicKey = keyPair.public as ECPublicKey
+        val keyX = ecPublicKey.w.affineX.toByteArray().ensureSize(ecCurve.coordinateLengthBytes)
+        val keyY = ecPublicKey.w.affineY.toByteArray().ensureSize(ecCurve.coordinateLengthBytes)
+        val cryptoPublicKey = CryptoPublicKey.Ec(curve = ecCurve, x = keyX, y = keyY)
+
+        // create certificate with bouncycastle
+        val notBeforeDate = Date.from(Instant.now())
+        val notAfterDate = Date.from(Instant.now().plusSeconds(30.days.inWholeSeconds))
+        val serialNumber: BigInteger = BigInteger.valueOf(Random.nextLong().absoluteValue)
+        val commonName = "DefaultCryptoService"
+        val issuer = X500Name("CN=$commonName")
+        val builder = X509v3CertificateBuilder(
+            /* issuer = */ issuer,
+            /* serial = */ serialNumber,
+            /* notBefore = */ notBeforeDate,
+            /* notAfter = */ notAfterDate,
+            /* subject = */ issuer,
+            /* publicKeyInfo = */ SubjectPublicKeyInfo.getInstance(keyPair.public.encoded)
+        )
+        val signatureAlgorithm = JwsAlgorithm.ES256
+        val contentSigner: ContentSigner = JcaContentSignerBuilder(signatureAlgorithm.jcaName).build(keyPair.private)
+        val certificateHolder = builder.build(contentSigner)
+
+        val x509Certificate = X509Certificate.deserialize(certificateHolder.encoded)
+        x509Certificate.shouldNotBeNull()
+
+        x509Certificate.encodeToDer() shouldBe certificateHolder.encoded
+        x509Certificate.signatureAlgorithm shouldBe signatureAlgorithm
+        x509Certificate.tbsCertificate.issuerCommonName shouldBe commonName
+        x509Certificate.tbsCertificate.subjectCommonName shouldBe commonName
+        x509Certificate.tbsCertificate.serialNumber shouldBe serialNumber
+        x509Certificate.tbsCertificate.signatureAlgorithm shouldBe signatureAlgorithm
+        x509Certificate.tbsCertificate.publicKey.encoded shouldBe keyPair.public.encoded
     }
 
 })
