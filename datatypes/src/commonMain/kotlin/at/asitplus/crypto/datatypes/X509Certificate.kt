@@ -60,7 +60,7 @@ data class TbsCertificate(
                 val issuerCommonName = reader.readSequence(::decodeIssuerName)
                 val timestamps = reader.readSequence(::decodeTimestamps)
                 val subjectCommonName = reader.readSequence(::decodeIssuerName)
-                val cryptoPublicKey = reader.readSequence(CryptoPublicKey.Ec.Companion::decodeFromDer)
+                val cryptoPublicKey = reader.readSequence(CryptoPublicKey.Companion::decodeFromDer)
 
                 return TbsCertificate(
                     version = version,

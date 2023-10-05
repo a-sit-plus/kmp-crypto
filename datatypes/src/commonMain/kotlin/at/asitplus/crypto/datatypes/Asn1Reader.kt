@@ -35,40 +35,36 @@ class Asn1Reader(input: ByteArray) {
         rest = rest.drop(tlv.overallLength).toByteArray()
         return obj
     }
-
-
 }
 
 
 fun decodeBitstring(input: ByteArray) = input.drop(1).toByteArray()
 
-fun CryptoPublicKey.Ec.Companion.decodeFromDer(input: ByteArray): CryptoPublicKey.Ec? = runCatching {
+fun CryptoPublicKey.Companion.decodeFromDer(input: ByteArray): CryptoPublicKey? = runCatching {
     val reader = Asn1Reader(input)
-    val ecCurve = reader.readSequence(::decodePublicKeyType)
-    val bitString = reader.readBitstring()
-    val xAndY = bitString.drop(1).toByteArray()
-    val x = xAndY.take(32).toByteArray()
-    val y = xAndY.drop(32).take(32).toByteArray()
-    return CryptoPublicKey.Ec.fromCoordinates(ecCurve, x, y)
-}.getOrNull()
-
-fun decodePublicKeyType(input: ByteArray): EcCurve {
-    val reader = Asn1Reader(input)
-    val oid = reader.readOid()
+    val innerSequence = reader.readSequence { bytes -> bytes }
+    val innerReader = Asn1Reader(innerSequence)
+    val oid = innerReader.readOid()
     if (oid == "2A8648CE3D0201") {
-        val curveOid = reader.readOid()
-        return when (curveOid) {
+        val curveOid = innerReader.readOid()
+        val curve = when (curveOid) {
             "2A8648CE3D030107" -> EcCurve.SECP_256_R_1
             "2B81040022" -> EcCurve.SECP_384_R_1
             "2B81040023" -> EcCurve.SECP_521_R_1
-            else -> throw IllegalArgumentException("Curve not supported: " + curveOid)
+            else -> throw IllegalArgumentException("Curve not supported: $curveOid")
         }
+        val bitString = reader.readBitstring()
+        val xAndY = bitString.drop(1).toByteArray()
+        val coordLen = curve.coordinateLengthBytes.toInt()
+        val x = xAndY.take(coordLen).toByteArray()
+        val y = xAndY.drop(coordLen).take(coordLen).toByteArray()
+        return CryptoPublicKey.Ec.fromCoordinates(curve, x, y)
     } else {
         throw IllegalArgumentException("Non-EC Keys not supported")
     }
-}
+}.getOrNull()
 
-fun Instant.Companion.decodeFromDer(input: ByteArray): Instant? {
+fun Instant.Companion.decodeFromDer(input: ByteArray): Instant {
     val s = String(input)
     val isoString =
         "20${s[0]}${s[1]}-${s[2]}${s[3]}-${s[4]}${s[5]}T${s[6]}${s[7]}:${s[8]}${s[9]}:${s[10]}${s[11]}${s[12]}"
