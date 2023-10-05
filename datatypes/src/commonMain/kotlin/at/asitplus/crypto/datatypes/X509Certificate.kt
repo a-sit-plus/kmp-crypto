@@ -3,8 +3,6 @@ package at.asitplus.crypto.datatypes
 import at.asitplus.crypto.datatypes.asn1.decodeFromDer
 import at.asitplus.crypto.datatypes.asn1.sequence
 import at.asitplus.crypto.datatypes.io.ByteArrayBase64Serializer
-import io.matthewnelson.encoding.base16.Base16
-import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 
@@ -54,13 +52,15 @@ data class TbsCertificate(
         fun decodeFromDer(input: ByteArray): TbsCertificate? {
             return runCatching {
                 val reader = Asn1Reader(input)
-                val version = reader.read(0xA0, ::readInt)
-                val serialNumber = reader.read(0x02, Long.Companion::decodeFromDer)
-                val sigAlg = reader.read(0x30, JwsAlgorithm.Companion::decodeFromDer)
-                val issuerCommonName = reader.read(0x30, ::decodeIssuerName)
-                val timestamps = reader.read(0x30, ::decodeTimestamps)
-                val subjectCommonName = reader.read(0x30, ::decodeIssuerName)
-                val cryptoPublicKey = reader.read(0x30, CryptoPublicKey.Ec.Companion::decodeFromDer)
+                val version = reader.read(0xA0) {
+                    runCatching { Asn1Reader(it).readInt() }.getOrNull()
+                }
+                val serialNumber = reader.readLong()
+                val sigAlg = reader.readSequence(JwsAlgorithm.Companion::decodeFromDer)
+                val issuerCommonName = reader.readSequence(::decodeIssuerName)
+                val timestamps = reader.readSequence(::decodeTimestamps)
+                val subjectCommonName = reader.readSequence(::decodeIssuerName)
+                val cryptoPublicKey = reader.readSequence(CryptoPublicKey.Ec.Companion::decodeFromDer)
 
                 return TbsCertificate(
                     version = version,
@@ -77,28 +77,25 @@ data class TbsCertificate(
 
         private fun decodeTimestamps(input: ByteArray): Pair<Instant, Instant>? = runCatching {
             val reader = Asn1Reader(input)
-            val firstInstant = reader.read(0x17, Instant.Companion::decodeFromDer)
-            val secondInstant = reader.read(0x17, Instant.Companion::decodeFromDer)
+            val firstInstant = reader.readInstant()
+            val secondInstant = reader.readInstant()
             return Pair(firstInstant, secondInstant)
         }.getOrNull()
 
         private fun decodeIssuerName(input: ByteArray) =
-            runCatching { Asn1Reader(input).read(0x31, ::decodeX500Name) }.getOrNull()
+            runCatching { Asn1Reader(input).readSet(::decodeX500Name) }.getOrNull()
 
         private fun decodeX500Name(input: ByteArray) =
-            runCatching { Asn1Reader(input).read(0x30, ::decodeRdn) }.getOrNull()
+            runCatching { Asn1Reader(input).readSequence(::decodeRdn) }.getOrNull()
 
         private fun decodeRdn(input: ByteArray): String? = runCatching {
             val reader = Asn1Reader(input)
-            val oid = reader.read(0x06) { bytes -> bytes.encodeToString(Base16) }
+            val oid = reader.readOid()
             if (oid == "550403") {
-                return reader.read(0x0c) { bytes -> String(bytes) }
+                return reader.readUtf8String()
             }
             return null
         }.getOrNull()
-
-        private fun readInt(input: ByteArray) =
-            runCatching { Asn1Reader(input).read(0x02, Int.Companion::decodeFromDer) }.getOrNull()
 
     }
 }
@@ -144,15 +141,15 @@ data class X509Certificate(
     companion object {
         fun decodeFromDer(input: ByteArray): X509Certificate? {
             return runCatching {
-                Asn1Reader(input).read(0x30, ::decodeFromDerInner)
+                Asn1Reader(input).readSequence(::decodeFromDerInner)
             }.getOrNull()
         }
 
         private fun decodeFromDerInner(input: ByteArray): X509Certificate {
             val reader = Asn1Reader(input)
-            val tbs = reader.read(0x30, TbsCertificate.Companion::decodeFromDer)
-            val sigAlg = reader.read(0x30, JwsAlgorithm.Companion::decodeFromDer)
-            val signature = reader.read(0x03, ::decodeBitstring)
+            val tbs = reader.readSequence(TbsCertificate.Companion::decodeFromDer)
+            val sigAlg = reader.readSequence(JwsAlgorithm.Companion::decodeFromDer)
+            val signature = reader.readBitstring()
             return X509Certificate(
                 tbsCertificate = tbs,
                 signatureAlgorithm = sigAlg,
