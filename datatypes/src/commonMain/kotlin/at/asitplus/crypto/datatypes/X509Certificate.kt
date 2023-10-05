@@ -51,9 +51,9 @@ data class TbsCertificate(
     }
 
     companion object {
-        fun decodeFromDer(encoded: ByteArray): TbsCertificate? {
+        fun decodeFromDer(input: ByteArray): TbsCertificate? {
             return runCatching {
-                val reader = Asn1Reader(encoded)
+                val reader = Asn1Reader(input)
                 val version = reader.read(0xA0, ::readInt)
                 val serialNumber = reader.read(0x02, Long.Companion::decodeFromDer)
                 val sigAlg = reader.read(0x30, JwsAlgorithm.Companion::decodeFromDer)
@@ -75,31 +75,30 @@ data class TbsCertificate(
             }.getOrNull()
         }
 
-        private fun decodeTimestamps(bytes: ByteArray): Pair<Instant, Instant>? = runCatching {
-            var rest = bytes
-            val firstInstant = read(rest, 0x17, Instant.Companion::decodeFromDer).also { rest = it.second }
-            val secondInstant = read(rest, 0x17, Instant.Companion::decodeFromDer).also { rest = it.second }
-            return Pair(firstInstant.first, secondInstant.first)
+        private fun decodeTimestamps(input: ByteArray): Pair<Instant, Instant>? = runCatching {
+            val reader = Asn1Reader(input)
+            val firstInstant = reader.read(0x17, Instant.Companion::decodeFromDer)
+            val secondInstant = reader.read(0x17, Instant.Companion::decodeFromDer)
+            return Pair(firstInstant, secondInstant)
         }.getOrNull()
 
-        private fun decodeIssuerName(bytes: ByteArray) =
-            runCatching { read(bytes, 0x31, ::decodeX500Name).first }.getOrNull()
+        private fun decodeIssuerName(input: ByteArray) =
+            runCatching { Asn1Reader(input).read(0x31, ::decodeX500Name) }.getOrNull()
 
-        private fun decodeX500Name(bytes: ByteArray) =
-            runCatching { read(bytes, 0x30, ::decodeRdn).first }.getOrNull()
+        private fun decodeX500Name(input: ByteArray) =
+            runCatching { Asn1Reader(input).read(0x30, ::decodeRdn) }.getOrNull()
 
-        private fun decodeRdn(bytes: ByteArray): String? = runCatching {
-            var rest = bytes
-            val oid = read(rest, 0x06) { bytes -> bytes.encodeToString(Base16) }
-                .also { rest = it.second }
-            if (oid.first == "550403") {
-                return read(rest, 0x0c) { bytes -> String(bytes) }.first
+        private fun decodeRdn(input: ByteArray): String? = runCatching {
+            val reader = Asn1Reader(input)
+            val oid = reader.read(0x06) { bytes -> bytes.encodeToString(Base16) }
+            if (oid == "550403") {
+                return reader.read(0x0c) { bytes -> String(bytes) }
             }
             return null
         }.getOrNull()
 
         private fun readInt(input: ByteArray) =
-            runCatching { read(input, 0x02, Int.Companion::decodeFromDer).first }.getOrNull()
+            runCatching { Asn1Reader(input).read(0x02, Int.Companion::decodeFromDer) }.getOrNull()
 
     }
 }
@@ -143,9 +142,9 @@ data class X509Certificate(
     }
 
     companion object {
-        fun decodeFromDer(encoded: ByteArray): X509Certificate? {
+        fun decodeFromDer(input: ByteArray): X509Certificate? {
             return runCatching {
-                read(encoded, 0x30, ::decodeFromDerInner).first
+                Asn1Reader(input).read(0x30, ::decodeFromDerInner)
             }.getOrNull()
         }
 
