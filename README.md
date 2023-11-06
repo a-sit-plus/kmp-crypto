@@ -99,7 +99,7 @@ when (val pk = cert.publicKey) {
 
 println("The full certificate is:\n${Json { prettyPrint = true }.encodeToString(cert)}")
 
-println("Re-encoding it produces the same bytes? ${cert.derEncoded contentEquals certBytes}")
+println("Re-encoding it produces the same bytes? ${cert.encodeToDer() contentEquals certBytes}")
 ```
 
 Which produces the following output:
@@ -215,10 +215,10 @@ val tbsCsr = TbsCertificationRequest(
     subjectName = listOf(DistinguishedName.CommonName(Asn1String.UTF8(commonName))),
     publicKey = cryptoPublicKey
 )
-val signed =  /* pass tbsCsr.derEncoded to platform code*/
+val signed =  /* pass tbsCsr.encodeToDer() to platform code*/
 val csr = CertificationRequest(tbsCsr, signatureAlgorithm, signed)
 
-println(csr.derEncoded)
+println(csr.encodeToDer())
 ```
 
 Which results in the following output:
@@ -253,7 +253,7 @@ nodes can be processed as desired. Subclasses of `Asn1Element` reflect this:
 Any complex data structure (such as CSR, public key, certificate, …) implements `Asn1Encodable`, which means you can:
 
 * encapsulate it into an ASN.1 Tree by calling `.encodeToTlv()`
-* directly get a DER-encoded version through the `.derEncoded` lazily evaluated property
+* directly get a DER-encoded byte array through the `.encodetoDer()` function
 
 To also suport going the other way, the companion objects of these complex classes implement `Asn1Decodable`, which
 allows for

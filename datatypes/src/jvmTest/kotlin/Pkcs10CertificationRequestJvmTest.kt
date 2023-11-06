@@ -52,13 +52,13 @@ class Pkcs10CertificationRequestJvmTest : FreeSpec({
         )
         val signed = Signature.getInstance(signatureAlgorithm.jcaName).apply {
             initSign(keyPair.private)
-            update(tbsCsr.derEncoded)
+            update(tbsCsr.encodeToDer())
         }.sign()
         val csr = Pkcs10CertificationRequest(tbsCsr, signatureAlgorithm, signed)
 
         println(csr.encodeToTlv().toDerHexString(lineLen = 64))
 
-        val kotlinEncoded = csr.derEncoded
+        val kotlinEncoded = csr.encodeToDer()
 
         val contentSigner: ContentSigner = JcaContentSignerBuilder(signatureAlgorithm.jcaName).build(keyPair.private)
         val spki = SubjectPublicKeyInfo.getInstance(keyPair.public.encoded)

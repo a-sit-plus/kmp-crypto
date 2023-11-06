@@ -1,7 +1,6 @@
 package at.asitplus.crypto.datatypes.asn1
 
 import at.asitplus.crypto.datatypes.asn1.DERTags.toImplicitTag
-import kotlinx.serialization.Transient
 
 /**
  * Interface providing methods to encode to ASN.1
@@ -10,16 +9,26 @@ interface Asn1Encodable<A : Asn1Element> {
 
     /**
      * Encodes the implementing object into an [A]
+     * @throws Asn1Exception in case an illegal ASN.1 Object was to be constructed
      */
     @Throws(Asn1Exception::class)
     fun encodeToTlv(): A
 
     /**
-     * Convenience property to directly get the DER-encoded representation of the implementing object
+     * Exception-free version of [encodeToTlv]
      */
+    fun encodeToTlvOrNull() = runCatching { encodeToTlv() }.getOrNull()
 
-    @Transient
-    val derEncoded @Throws(Asn1Exception::class) get() = encodeToTlv().derEncoded
+    /**
+     * Convenience function to directly get the DER-encoded representation of the implementing object
+     */
+    @Throws(Asn1Exception::class)
+    fun encodeToDer() = encodeToTlv().derEncoded
+
+    /**
+     * Exception-free version of [encodeToDer]
+     */
+    fun encodeToDerOrNull() = runCatching { encodeToDer() }.getOrNull()
 }
 
 /**

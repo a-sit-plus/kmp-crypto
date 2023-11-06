@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalEncodingApi::class)
-
 package at.asitplus.crypto.datatypes.asn1
 
 import at.asitplus.crypto.datatypes.asn1.BERTags.BIT_STRING
@@ -11,7 +9,6 @@ import at.asitplus.crypto.datatypes.asn1.BERTags.UTC_TIME
 import at.asitplus.crypto.datatypes.asn1.DERTags.toExplicitTag
 import at.asitplus.crypto.datatypes.io.BitSet
 import kotlinx.datetime.Instant
-import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Class Providing a DSL for creating arbitrary ASN.1 structures. You will almost certainyl never use it directly, but rather use it as follows:
@@ -133,7 +130,11 @@ class Asn1TreeBuilder {
 
     /**
      * Adds the passed string as PRINTABLE STRING [Asn1Primitive] to this ASN.1 structure
+     *
+     * @throws Asn1Exception if illegal characters are to be encoded into a printable string
      */
+
+    @Throws(Asn1Exception::class)
     fun printableString(value: String) {
         elements += Asn1String.Printable(value).encodeToTlv()
     }

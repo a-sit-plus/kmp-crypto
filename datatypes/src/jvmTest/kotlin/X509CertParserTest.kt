@@ -17,7 +17,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.bouncycastle.jcajce.provider.asymmetric.X509
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileReader
@@ -67,7 +66,7 @@ class X509CertParserTest : FreeSpec({
 
             println("The full certificate is:\n${Json { prettyPrint = true }.encodeToString(cert)}")
 
-            println("Re-encoding it produces the same bytes? ${cert.derEncoded contentEquals certBytes}")
+            println("Re-encoding it produces the same bytes? ${cert.encodeToDer() contentEquals certBytes}")
 
 
             println(cert.encodeToTlv())

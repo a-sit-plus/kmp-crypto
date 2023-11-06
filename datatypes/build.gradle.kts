@@ -18,7 +18,7 @@ kotlin {
     iosSimulatorArm64()
     iosX64()
     sourceSets {
-         commonMain {
+        commonMain {
             dependencies {
                 api("at.asitplus:kmmresult:${kmmresult}")
                 api(serialization("json"))
@@ -26,23 +26,23 @@ kotlin {
                 implementation("io.matthewnelson.kotlin-components:encoding-base16:${encoding}")
                 implementation("io.matthewnelson.kotlin-components:encoding-base64:${encoding}")
             }
-             commonTest  {
-                dependencies {
-                    implementation(kotest("property"))
-                    implementation(kotlin("reflect"))
-                }
+        }
+
+        commonTest {
+            dependencies {
+                implementation(kotest("property"))
+                implementation(kotlin("reflect"))
             }
         }
 
-         jvmMain{
+        jvmMain {
             dependencies {
                 api(bouncycastle("bcpkix"))
             }
         }
     }
 }
-
-exportIosFramework("KmpCrypto", serialization("json"), datetime())
+exportIosFramework("KmpCrypto", serialization("json"), datetime(), "at.asitplus:kmmresult:${kmmresult}")
 
 val javadocJar = setupDokka(baseUrl = "https://github.com/a-sit-plus/kmp-crypto/tree/main/", multiModuleDoc = true)
 

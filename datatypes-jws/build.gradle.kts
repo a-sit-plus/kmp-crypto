@@ -35,8 +35,13 @@ kotlin {
         }
     }
 }
-exportIosFramework("KmpCryptoJws", serialization("json"), datetime(), project(":datatypes"))
-
+exportIosFramework(
+    "KmpCryptoJws",
+    serialization("json"),
+    datetime(),
+    "at.asitplus:kmmresult:${kmmresult}",
+    project(":datatypes")
+)
 
 val javadocJar = setupDokka(baseUrl = "https://github.com/a-sit-plus/kmp-crypto/tree/main/", multiModuleDoc = true)
 
