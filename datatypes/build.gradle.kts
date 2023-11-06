@@ -12,10 +12,13 @@ plugins {
 version = "2.1.0-SNAPSHOT"
 
 
-exportIosFramework("KmpCrypto", serialization("json"), datetime())
 kotlin {
+    jvm()
+    iosArm64()
+    iosSimulatorArm64()
+    iosX64()
     sourceSets {
-        val commonMain by getting {
+         commonMain {
             dependencies {
                 api("at.asitplus:kmmresult:${kmmresult}")
                 api(serialization("json"))
@@ -23,7 +26,7 @@ kotlin {
                 implementation("io.matthewnelson.kotlin-components:encoding-base16:${encoding}")
                 implementation("io.matthewnelson.kotlin-components:encoding-base64:${encoding}")
             }
-            val commonTest by getting {
+             commonTest  {
                 dependencies {
                     implementation(kotest("property"))
                     implementation(kotlin("reflect"))
@@ -31,16 +34,15 @@ kotlin {
             }
         }
 
-        val jvmMain by getting {
+         jvmMain{
             dependencies {
                 api(bouncycastle("bcpkix"))
             }
         }
-
-        val commonTest by getting
-        val jvmTest by getting
     }
 }
+
+exportIosFramework("KmpCrypto", serialization("json"), datetime())
 
 val javadocJar = setupDokka(baseUrl = "https://github.com/a-sit-plus/kmp-crypto/tree/main/", multiModuleDoc = true)
 
