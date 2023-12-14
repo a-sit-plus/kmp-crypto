@@ -16,6 +16,8 @@ import java.security.KeyFactory
 import java.security.PublicKey
 import java.security.interfaces.ECPublicKey
 import java.security.interfaces.RSAPublicKey
+import java.security.spec.MGF1ParameterSpec
+import java.security.spec.PSSParameterSpec
 import java.security.spec.RSAPublicKeySpec
 
 
@@ -34,6 +36,17 @@ val CryptoAlgorithm.jcaName
         CryptoAlgorithm.PS384 -> "RSASSA-PSS"
         CryptoAlgorithm.PS512 -> "RSASSA-PSS"
         CryptoAlgorithm.RS1 -> "SHA1withRSA"
+    }
+
+val CryptoAlgorithm.jcaParams
+    get() = when (this) {
+        CryptoAlgorithm.PS256 ->PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1)
+
+        CryptoAlgorithm.PS384 ->PSSParameterSpec("SHA-384", "MGF1", MGF1ParameterSpec.SHA384, 48, 1)
+
+        CryptoAlgorithm.PS512 -> PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1)
+
+        else -> null
     }
 
 val Digest.jcaName
@@ -99,9 +112,9 @@ fun CryptoPublicKey.Rsa.Companion.fromJcaPublicKey(publicKey: RSAPublicKey): Kmm
     runCatching { CryptoPublicKey.Rsa(publicKey.modulus.toByteArray(), publicKey.publicExponent.toInt()) }.wrap()
 
 fun CryptoPublicKey.Companion.fromJcaPublicKey(publicKey: PublicKey): KmmResult<CryptoPublicKey> =
-        when (publicKey) {
-            is RSAPublicKey -> CryptoPublicKey.Rsa.fromJcaPublicKey(publicKey)
-            is ECPublicKey -> CryptoPublicKey.Ec.fromJcaPublicKey(publicKey)
-            else -> KmmResult.failure(IllegalArgumentException("Unsupported Key Type"))
-        }
+    when (publicKey) {
+        is RSAPublicKey -> CryptoPublicKey.Rsa.fromJcaPublicKey(publicKey)
+        is ECPublicKey -> CryptoPublicKey.Ec.fromJcaPublicKey(publicKey)
+        else -> KmmResult.failure(IllegalArgumentException("Unsupported Key Type"))
+    }
 

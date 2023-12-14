@@ -36,6 +36,8 @@ sealed class CryptoSignature(
 
     abstract fun encodeToTlvBitString(): Asn1Element
 
+    abstract val signatureBytes :ByteArray
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other == null || this::class != other::class) return false
@@ -98,6 +100,9 @@ sealed class CryptoSignature(
 
         override fun encodeToTlvBitString(): Asn1Element = encodeToDer().encodeToTlvBitString()
 
+        override val signatureBytes: ByteArray
+            get() = encodeToDer()
+
     }
 
     class RSAorHMAC(input: ByteArray) : CryptoSignature(
@@ -105,6 +110,9 @@ sealed class CryptoSignature(
     ) {
         override val rawByteArray by lazy { (signature as Asn1Primitive).decode(BIT_STRING) { it } }
         override fun encodeToTlvBitString(): Asn1Element = this.encodeToTlv()
+
+        override val signatureBytes: ByteArray
+            get() = rawByteArray
     }
 
     companion object : Asn1Decodable<Asn1Element, CryptoSignature> {
@@ -115,7 +123,7 @@ sealed class CryptoSignature(
                     BIT_STRING -> RSAorHMAC((src as Asn1Primitive).decode(BIT_STRING) { it })
                     DERTags.DER_SEQUENCE -> {
                         val first =
-                            ((src as Asn1Sequence).nextChild() as Asn1Primitive).decode(INTEGER) { it.dropWhile { it == 0.toByte() } }
+                            ((src as Asn1Sequence).nextChild() as Asn1Primitive).decode(INTEGER) { it.dropWhile { it == 0.toByte() } } //The problems are somehow related to this
                                 .toByteArray()
                         val second =
                             (src.nextChild() as Asn1Primitive).decode(INTEGER) { it.dropWhile { it == 0.toByte() } }
