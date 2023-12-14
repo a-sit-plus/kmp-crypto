@@ -60,6 +60,10 @@ data class JwsSigned(
 
             return JwsSigned(header, payload, signature, stringList[0] + "." + stringList[1])
         }
+
+
+        fun prepareJwsSignatureInput(header: JwsHeader, payload: ByteArray): String =
+            "${header.serialize().encodeToByteArray().encodeToString(Base64UrlStrict)}.${payload.encodeToString(Base64UrlStrict)}"
     }
 }
 
