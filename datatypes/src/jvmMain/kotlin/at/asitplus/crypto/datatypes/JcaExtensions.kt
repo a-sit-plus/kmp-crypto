@@ -40,9 +40,9 @@ val CryptoAlgorithm.jcaName
 
 val CryptoAlgorithm.jcaParams
     get() = when (this) {
-        CryptoAlgorithm.PS256 ->PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1)
+        CryptoAlgorithm.PS256 -> PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1)
 
-        CryptoAlgorithm.PS384 ->PSSParameterSpec("SHA-384", "MGF1", MGF1ParameterSpec.SHA384, 48, 1)
+        CryptoAlgorithm.PS384 -> PSSParameterSpec("SHA-384", "MGF1", MGF1ParameterSpec.SHA384, 48, 1)
 
         CryptoAlgorithm.PS512 -> PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1)
 
@@ -116,5 +116,12 @@ fun CryptoPublicKey.Companion.fromJcaPublicKey(publicKey: PublicKey): KmmResult<
         is RSAPublicKey -> CryptoPublicKey.Rsa.fromJcaPublicKey(publicKey)
         is ECPublicKey -> CryptoPublicKey.Ec.fromJcaPublicKey(publicKey)
         else -> KmmResult.failure(IllegalArgumentException("Unsupported Key Type"))
+    }
+
+
+val CryptoSignature.jcaSignatureBytes: ByteArray
+    get() = when (this) {
+        is CryptoSignature.EC ->  encodeToDer()
+        is CryptoSignature.RSAorHMAC ->rawByteArray
     }
 
