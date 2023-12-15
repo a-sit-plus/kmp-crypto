@@ -121,7 +121,7 @@ fun CryptoPublicKey.Companion.fromJcaPublicKey(publicKey: PublicKey): KmmResult<
 
 val CryptoSignature.jcaSignatureBytes: ByteArray
     get() = when (this) {
-        is CryptoSignature.EC ->  encodeToDer()
-        is CryptoSignature.RSAorHMAC ->rawByteArray
+        is CryptoSignature.EC -> encodeToDer()
+        is CryptoSignature.RSAorHMAC -> rawByteArray
     }
 
