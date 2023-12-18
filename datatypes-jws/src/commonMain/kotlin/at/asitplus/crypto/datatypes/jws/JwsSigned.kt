@@ -40,6 +40,14 @@ data class JwsSigned(
         return result
     }
 
+    override fun toString(): String {
+        return "JwsSigned(header=$header" +
+                ", payload=${payload.encodeToString(Base64UrlStrict)}" +
+                ", signature=$signature" +
+                ", plainSignatureInput='$plainSignatureInput')"
+    }
+
+
     companion object {
         fun parse(it: String): JwsSigned? {
             val stringList = it.replace("[^A-Za-z0-9-_.]".toRegex(), "").split(".")

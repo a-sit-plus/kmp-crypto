@@ -61,6 +61,10 @@ sealed class CryptoSignature(
 
     override fun encodeToTlv(): Asn1Element = signature
 
+    override fun toString(): String {
+        return "CryptoSignature(signature=${signature.prettyPrint()})"
+    }
+
     object CryptoSignatureSerializer : KSerializer<CryptoSignature> {
         override val descriptor: SerialDescriptor
             get() = PrimitiveSerialDescriptor("CryptoSignature", PrimitiveKind.STRING)
