@@ -10,9 +10,10 @@ import kotlinx.serialization.encoding.Encoder
 
 @Serializable(with = JweAlgorithmSerializer::class)
 enum class JweAlgorithm(val text: String) {
-
-    ECDH_ES("ECDH-ES");
-
+    ECDH_ES("ECDH-ES"),
+    RSA_OAEP_256("RSA-OAEP-256"),
+    RSA_OAEP_384("RSA-OAEP-384"),
+    RSA_OAEP_512("RSA-OAEP-512")
 }
 
 object JweAlgorithmSerializer : KSerializer<JweAlgorithm?> {
@@ -26,7 +27,7 @@ object JweAlgorithmSerializer : KSerializer<JweAlgorithm?> {
 
     override fun deserialize(decoder: Decoder): JweAlgorithm? {
         val decoded = decoder.decodeString()
-        return JweAlgorithm.values().firstOrNull { it.text == decoded }
+        return JweAlgorithm.entries.firstOrNull { it.text == decoded }
     }
 
 }
