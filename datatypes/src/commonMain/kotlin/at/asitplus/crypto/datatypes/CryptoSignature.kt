@@ -74,23 +74,32 @@ sealed class CryptoSignature(
     }
 
     /**
-     * Input is expected to be x,y coordinates concatenated to bytearray
+     * Input is expected to be `r` and `s` values
      */
-    class EC(private val first: ByteArray, private val second: ByteArray) : CryptoSignature(
+    class EC(private val rValue: ByteArray, private val sValue: ByteArray) : CryptoSignature(
         asn1Sequence {
-            append(Asn1Primitive(INTEGER, first.dropWhile { it == 0x00.toByte() }.toByteArray()))
-            append(Asn1Primitive(INTEGER, second.dropWhile { it == 0x00.toByte() }.toByteArray()))
+            append(Asn1Primitive(INTEGER, rValue.dropWhile { it == 0x00.toByte() }.toByteArray()))
+            append(Asn1Primitive(INTEGER, sValue.dropWhile { it == 0x00.toByte() }.toByteArray()))
         }
     ) {
+        /**
+         * JWS encodes an EC signature as the `r` and `s` value concatenated,
+         * which may contain a padding (leading 0x00), which is dropped in the other constructor,
+         * when creating the ASN.1 integers.
+         */
         constructor(input: ByteArray) : this(
-            // TODO Better go through by hand at ensure the correct sizes
-            input.sliceArray(0 until ((input.size + 1) / 2)),
-            input.sliceArray(((input.size + 1) / 2) until input.size)
+            input.sliceArray(0 until (input.size / 2)),
+            input.sliceArray((input.size / 2) until input.size)
         )
 
+        /**
+         * Concatenates [rValue] and [sValue], padding each one to the next largest coordinate length
+         * of an [EcCurve], for use in e.g. JWS signatures.
+         */
         override val rawByteArray by lazy {
-            val maxLen = max(first.size, second.size)
-            first.ensureSize(maxLen.toUInt()) + second.ensureSize(maxLen.toUInt())
+            val maxLenValues = max(rValue.size, sValue.size).toUInt()
+            val correctLen = EcCurve.entries.map { it.coordinateLengthBytes }.filter { maxLenValues <= it }.min()
+            rValue.ensureSize(correctLen) + sValue.ensureSize(correctLen)
         }
 
         override fun encodeToTlvBitString(): Asn1Element = encodeToDer().encodeToTlvBitString()
@@ -120,12 +129,15 @@ sealed class CryptoSignature(
             }
         }
 
+        /**
+         * In DER encoding, the first bit is the sign bit, so to encode numbers with the first bit set,
+         * one needs to prepend a 0x00 padding byte. In this function, we'll drop that, to get the raw value.
+         */
+        @Throws(Asn1Exception::class)
         private fun dropFirstByteIfItIsPadding(src: Asn1Primitive): ByteArray {
             val decoded: ByteArray = src.decode(INTEGER) { it }
-            if (decoded.size > 1) {
-                if (decoded[0] == 0x00.toByte() && decoded[1] >= 0x80.toByte()) {
-                    return decoded.drop(1).toByteArray()
-                }
+            if (decoded.size > 1 && decoded[0] == 0x00.toByte() && decoded[1] >= 0x80.toByte()) {
+                return decoded.drop(1).toByteArray()
             }
             return decoded
         }
