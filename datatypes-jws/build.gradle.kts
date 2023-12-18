@@ -9,7 +9,7 @@ plugins {
     id("at.asitplus.gradle.conventions")
 }
 
-version = "2.2.0-SNAPSHOT"
+version = "2.2.0"
 
 kotlin {
     jvm()

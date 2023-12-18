@@ -32,13 +32,17 @@
   * Add `xxxSafe()` functions to encapsulate endocing/decoding in `KmmResult`
   * Return `KmmResult` for conversions between different key representations ( i.e. `CryptoPublicKey`, `CoseKey` and `JsonWebKey`) 
 
-### NEXT
+### 2.2.0
 * Dependency Updates
   * KmmResult 1.5.4
 * Refactor `MultiBaseHelper` to only handle conversion
 * Change `JwsHeader.publicKey` from JsonWebKey to CryptoPublicKey
-* Remove `SignatureValueLength` parameters from JWS- & Cose Algorithm Enum class
+* Remove `SignatureValueLength` parameters from JWS & COSE Algorithm Enum class
 * Remove deprecated functions
-* New `CryptoAlgorithm` class 
+* New `CryptoAlgorithm` class
 * New `CryptoSignature` class for easy Asn1 - RawByteArray conversion
-* Rename function in file `JcaExtensions.kt` from `.toPublicKey` to `.toJcaPublicKey` to reflect connection to JVM
+* Rename `Jws` classes
+  * New `CryptoAlgorithm` class
+  * New `CryptoSignature` class for easy Asn1 - RawByteArray conversion
+* Rename function in file `JcaExtensions.kt` from `.toPublicKey` to `.toJcaPublicKey` to reflect connection to JVMname function in file `JcaExtensions.kt` from `.toPublicKey` to `.toJcaPublicKey` to reflect connection to JVM
+* Remove VcLib-specific constants
