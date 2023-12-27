@@ -25,10 +25,10 @@ sealed class CryptoPublicKey : Asn1Encodable<Asn1Sequence>, Identifiable {
     val additionalProperties = mutableMapOf<String, String>()
 
     /**
-     * Multibase KID
+     * Representation of the key in DID format
      */
     @Transient
-    abstract val keyId: String
+    abstract val didEncoded: String
 
     /**
      * Representation of this key in the same ways as iOS would encode it natively
@@ -60,23 +60,28 @@ sealed class CryptoPublicKey : Asn1Encodable<Asn1Sequence>, Identifiable {
 
 
         /**
-         * Parses a KID and reconstructs a [CryptoPublicKey] from it
-         *
+         * Parses a DID representation of a public key and
+         * reconstructs the corresponding [CryptoPublicKey] from it
          * @throws Throwable all sorts of exception on invalid input
          */
         @Throws(Throwable::class)
-        fun fromKeyId(it: String): CryptoPublicKey {
-            val decodedKeyId = MultibaseHelper.decodeKeyId(it)
-            return when (decodedKeyId.first) {
-                true -> Ec.fromAnsiX963Bytes(
-                    byteArrayOf(
-                        Ec.ANSI_PREFIX,
-                        *decodedKeyId.second
-                    )
-                )
-                false -> Rsa.fromPKCS1encoded(decodedKeyId.second)
+        fun fromDid(input: String): CryptoPublicKey {
+            val bytes = MultibaseHelper.stripDid(input)
+            require(bytes.size > 3) { "Invalid key size" }
+            require(bytes[0] == 0x12.toByte()) { "Unknown public key identifier" }
+
+            return when (bytes[1]) {
+                0x90.toByte(), 0x91.toByte(), 0x92.toByte() ->
+                    Ec.fromAnsiX963Bytes(byteArrayOf(Ec.ANSI_PREFIX, *bytes.drop(2).toByteArray()))
+
+                0x05.toByte() ->
+                    Rsa.fromPKCS1encoded(bytes.drop(2).toByteArray())
+
+                else ->
+                    throw IllegalArgumentException("Unknown public key identifier")
             }
         }
+
 
         @Throws(Asn1Exception::class)
         override fun decodeFromTlv(src: Asn1Sequence): CryptoPublicKey = runRethrowing {
@@ -195,7 +200,7 @@ sealed class CryptoPublicKey : Asn1Encodable<Asn1Sequence>, Identifiable {
         }
 
         @Transient
-        override val keyId by lazy { MultibaseHelper.calcKeyId(this) }
+        override val didEncoded by lazy { MultibaseHelper.encodeToDid(this) }
 
         /**
          * PKCS#1 encoded RSA Public Key
@@ -276,7 +281,7 @@ sealed class CryptoPublicKey : Asn1Encodable<Asn1Sequence>, Identifiable {
         }
 
         @Transient
-        override val keyId by lazy { MultibaseHelper.calcKeyId(this) }
+        override val didEncoded by lazy { MultibaseHelper.encodeToDid(this) }
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true

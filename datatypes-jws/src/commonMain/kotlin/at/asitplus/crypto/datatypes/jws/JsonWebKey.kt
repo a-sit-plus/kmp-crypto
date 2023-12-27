@@ -149,7 +149,7 @@ data class JsonWebKey(
             runCatching { jsonSerializer.decodeFromString<JsonWebKey>(it) }.wrap()
 
         fun fromKeyId(it: String): KmmResult<JsonWebKey> =
-            runCatching { CryptoPublicKey.fromKeyId(it).toJsonWebKey() }.wrap()
+            runCatching { CryptoPublicKey.fromDid(it).toJsonWebKey() }.wrap()
 
         fun fromIosEncoded(bytes: ByteArray): KmmResult<JsonWebKey> =
             runCatching { CryptoPublicKey.fromIosEncoded(bytes).toJsonWebKey() }.wrap()
@@ -189,7 +189,7 @@ private const val JWK_ID = "jwkIdentifier"
  * Holds [JsonWebKey.keyId] when transforming a [JsonWebKey] to a [CryptoPublicKey]
  */
 var CryptoPublicKey.jwkId: String
-    get() = additionalProperties[JWK_ID] ?: keyId
+    get() = additionalProperties[JWK_ID] ?: didEncoded
     set(value) {
         additionalProperties[JWK_ID] = value
     }

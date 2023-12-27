@@ -36,7 +36,7 @@ class JwkTest : FreeSpec({
                 own.shouldNotBeNull()
                 println(own.serialize())
                 own.toCryptoPublicKey().getOrThrow().iosEncoded shouldBe cryptoPubKey.iosEncoded
-                CryptoPublicKey.fromKeyId(own.keyId!!) shouldBe cryptoPubKey
+                CryptoPublicKey.fromDid(own.keyId!!) shouldBe cryptoPubKey
             }
         }
     }

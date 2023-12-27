@@ -94,7 +94,7 @@ data class CoseKey(
             runCatching { cborSerializer.decodeFromByteArray<CoseKey>(it) }.wrap()
 
         fun fromKeyId(keyId: String): KmmResult<CoseKey> =
-            runCatching { CryptoPublicKey.fromKeyId(keyId).toCoseKey().getOrThrow() }.wrap()
+            runCatching { CryptoPublicKey.fromDid(keyId).toCoseKey().getOrThrow() }.wrap()
 
         fun fromIosEncoded(bytes: ByteArray): KmmResult<CoseKey> =
             runCatching { CryptoPublicKey.fromIosEncoded(bytes).toCoseKey().getOrThrow() }.wrap()
@@ -143,7 +143,7 @@ fun CryptoPublicKey.toCoseKey(algorithm: CoseAlgorithm? = null): KmmResult<CoseK
                         y = y
                     ),
                     type = CoseKeyType.EC2,
-                    keyId = keyId.encodeToByteArray(),
+                    keyId = didEncoded.encodeToByteArray(),
                     algorithm = algorithm
                 )
             )
@@ -161,7 +161,7 @@ fun CryptoPublicKey.toCoseKey(algorithm: CoseAlgorithm? = null): KmmResult<CoseK
                         e = e.encodeToByteArray()
                     ),
                     type = CoseKeyType.RSA,
-                    keyId = keyId.encodeToByteArray(),
+                    keyId = didEncoded.encodeToByteArray(),
                     algorithm = algorithm
                 )
             )
@@ -169,7 +169,7 @@ fun CryptoPublicKey.toCoseKey(algorithm: CoseAlgorithm? = null): KmmResult<CoseK
 
 private const val COSE_KID = "coseKid"
 var CryptoPublicKey.coseKid: String
-    get() = additionalProperties[COSE_KID] ?: keyId
+    get() = additionalProperties[COSE_KID] ?: didEncoded
     set(value) {
         additionalProperties[COSE_KID] = value
     }

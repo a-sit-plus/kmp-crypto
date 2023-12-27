@@ -2,7 +2,6 @@
 
 package at.asitplus.crypto.datatypes.jws
 
-import at.asitplus.KmmResult.Companion.wrap
 import at.asitplus.crypto.datatypes.CryptoPublicKey
 import at.asitplus.crypto.datatypes.pki.X509Certificate
 import at.asitplus.crypto.datatypes.asn1.Asn1Element
@@ -88,7 +87,7 @@ data class JwsHeader(
      */
     val publicKey: CryptoPublicKey? by lazy {
         jsonWebKey?.toCryptoPublicKey()?.getOrNull()
-            ?: keyId?.let { runCatching { CryptoPublicKey.fromKeyId(it) } }?.getOrNull()
+            ?: keyId?.let { runCatching { CryptoPublicKey.fromDid(it) } }?.getOrNull()
             ?: certificateChain
                 ?.firstNotNullOfOrNull {
                     runCatching { X509Certificate.decodeFromTlv(Asn1Element.parse(it) as Asn1Sequence).publicKey }.getOrNull()

@@ -1,6 +1,7 @@
 package at.asitplus.crypto.datatypes.io
 
 import at.asitplus.crypto.datatypes.CryptoPublicKey
+import at.asitplus.crypto.datatypes.EcCurve
 import io.matthewnelson.encoding.base64.Base64
 import io.matthewnelson.encoding.base64.Base64ConfigBuilder
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
@@ -48,7 +49,7 @@ object ByteArrayBase64Serializer : KSerializer<ByteArray> {
         encoder.encodeString(value.encodeToString(Base64Strict))
     }
 
-    //cannot annotate with throws here because interface has no annotation
+    //cannot be annotated with @Throws here because interfaces do not have annotations
     /**
      * @throws SerializationException on error
      */
@@ -72,7 +73,7 @@ object ByteArrayBase64UrlSerializer : KSerializer<ByteArray> {
         encoder.encodeString(value.encodeToString(Base64UrlStrict))
     }
 
-    //cannot annotate with throws here because interface has no annotation
+    //cannot be annotated with @Throws here because interfaces do not have annotations
     /**
      * @throws SerializationException on error
      */
@@ -86,31 +87,54 @@ object ByteArrayBase64UrlSerializer : KSerializer<ByteArray> {
 object MultibaseHelper {
     private const val PREFIX_DID_KEY = "did:key"
 
+    /**
+     * https://datatracker.ietf.org/doc/html/draft-multiformats-multibase
+     *
+     * Adds correct Multibase identifier ('m') to Base64 encoding
+     */
     private fun multibaseWrapBase64(it: ByteArray) = "m${it.encodeToString(Base64Strict)}"
 
+    /**
+     * Adds correct Multicodec identifier ('0x1205') to encoded RSA key
+     */
     private fun multicodecWrapRSA(it: ByteArray) = byteArrayOf(0x12.toByte(), 0x05.toByte()) + it
 
-    // 0x1200 would be with compression, so we'll use 0x1290
-    private fun multicodecWrapEC(it: ByteArray) = byteArrayOf(0x12.toByte(), 0x90.toByte()) + it
+    /**
+     * Adds a Multicodec identifier ('0x129x') to encoded P-xxx key
+     * We use 0x129x to identify uncompressed EC keys of their respective size. Currently only 0x120x are draft identifiers,
+     * these however are used for compressed EC keys
+     *
+     *  0x1290 P-256
+     *  0x1291 P-384
+     *  0x1292 P-512
+     */
+    private fun multiCodecWrapEC(it: ByteArray, curve: EcCurve) =
+        when(curve){
+            EcCurve.SECP_256_R_1 -> byteArrayOf(0x12.toByte(), 0x90.toByte()) + it
+            EcCurve.SECP_384_R_1 -> byteArrayOf(0x12.toByte(), 0x91.toByte()) + it
+            EcCurve.SECP_521_R_1 -> byteArrayOf(0x12.toByte(), 0x92.toByte()) + it
+        }
 
     /**
-     * Returns something like `did:key:mEpA...` with the [x] and [y] values appended in Base64.
-     * This translates to `Base64(0x12, 0x90, EC-P-{256,384,521}-Key)`.
-     * Note that `0x1290` is not an official Multicodec prefix, but there seems to be none for
-     * uncompressed P-256 key. We can't use the compressed format, because decoding that would
-     * require some EC Point math...
+     * Returns something like `did:key:mEpA...` with the public key parameters appended in Base64.
+     * This translates for example to `Base64(0x12, 0x90, EC-P-{256,384,521}-Key)`.
      */
-    fun calcKeyId(key: CryptoPublicKey): String {
+    fun encodeToDid(key: CryptoPublicKey): String {
         return when (key) {
             is CryptoPublicKey.Ec -> "$PREFIX_DID_KEY:${
                 multibaseWrapBase64(
-                    multicodecWrapEC(
-                        key.iosEncoded.drop(1).toByteArray()
+                    multiCodecWrapEC(
+                        key.iosEncoded.drop(1).toByteArray(),
+                        key.curve
                     )
                 )
             }"
 
-            is CryptoPublicKey.Rsa -> "$PREFIX_DID_KEY:${multibaseWrapBase64(multicodecWrapRSA(key.iosEncoded))}"
+            is CryptoPublicKey.Rsa -> "$PREFIX_DID_KEY:${
+                multibaseWrapBase64(
+                    multicodecWrapRSA(key.iosEncoded)
+                )
+            }"
         }
     }
 
@@ -127,18 +151,5 @@ object MultibaseHelper {
         } else throw IllegalArgumentException("Encoding not supported")
 
     @Throws(Throwable::class)
-    private fun multiKeyGetKty(it: ByteArray): Pair<Boolean, ByteArray> =
-        if (it.size <= 3) {
-            throw IllegalArgumentException("Invalid key size")
-        } else if (it[0] != 0x12.toByte()) {
-            throw IllegalArgumentException("Unknown public key identifier")
-        } else when (it[1]) {
-            0x90.toByte() -> true to it.drop(2).toByteArray()  // Case EC
-            0x05.toByte() -> false to it.drop(2).toByteArray() // Case RSA
-            else -> throw IllegalArgumentException("Unknown public key identifier")
-        }
-
-    @Throws(Throwable::class)
-    internal fun decodeKeyId(keyId: String): Pair<Boolean, ByteArray> =
-        multiKeyGetKty(multibaseDecode(multiKeyRemovePrefix(keyId)))
+    internal fun stripDid(keyId: String): ByteArray = multibaseDecode(multiKeyRemovePrefix(keyId))
 }
