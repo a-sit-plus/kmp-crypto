@@ -1,0 +1,3 @@
+[submodule "gradle-conventions-plugin"]
+	path = gradle-conventions-plugin
+	url = https://github.com/a-sit-plus/gradle-conventions-plugin.git
