@@ -1,3 +1,0 @@
-[submodule "gradle-conventions-plugin"]
-	path = gradle-conventions-plugin
-	url = ../gradle-conventions-plugin
