@@ -1,0 +1,3 @@
+[submodule "swift-klib-plugin"]
+	path = swift-klib-plugin
+	url = ../swift-klib-plugin.git

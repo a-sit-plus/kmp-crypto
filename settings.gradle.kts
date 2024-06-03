@@ -1,5 +1,7 @@
 pluginManagement {
+    includeBuild("swift-klib-plugin")
     repositories {
+        google()
         mavenCentral()
         gradlePluginPortal()
         maven {
@@ -9,7 +11,14 @@ pluginManagement {
     }
 }
 
+dependencyResolutionManagement {
+    repositories {
+        google()
+    }
+}
+
 include(":datatypes")
 include(":datatypes-jws")
 include(":datatypes-cose")
+include(":provider")
 rootProject.name = "kmp-crypto"

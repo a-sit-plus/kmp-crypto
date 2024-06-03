@@ -3,6 +3,8 @@
 Development happens in branch [development](https://github.com/a-sit-plus/kmp-crypto/tree/development). The main branch always tracks the latest release.
 Hence, create PRs against `development`. Use dedicated `release/x.y.z` branches to prepare releases and create release PRs against `main`, which will then be merged back into `development`.
 
+**Clone recursively, since we depend on a forked swift-klib plugin which is includes ad a git submodule"
+
 ## Publishing
 
 Create a GPG key with `gpg --gen-key`, and export it with `gpg --keyring secring.gpg --export-secret-keys > ~/.gnupg/secring.gpg`. Be sure to publish it with `gpg --keyserver keyserver.ubuntu.com --send-keys <your-key-id>`. See also the information in the [Gradle docs](https://docs.gradle.org/current/userguide/signing_plugin.html).
