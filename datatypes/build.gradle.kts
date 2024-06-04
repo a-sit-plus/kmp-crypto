@@ -183,7 +183,6 @@ kotlin {
         commonTest {
             dependencies {
                 implementation(kotest("property"))
-                implementation(kotlin("reflect"))
             }
         }
 
