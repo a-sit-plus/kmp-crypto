@@ -43,6 +43,8 @@ kotlin {
         implementation(coroutines())
         implementation(napier())
         api(project(":datatypes"))
+        implementation(kotlincrypto.hash.sha2)
+        implementation(kotlincrypto.secureRandom)
     }
     sourceSets.androidMain.dependencies {
         implementation("androidx.biometric:biometric:1.2.0-alpha05")
