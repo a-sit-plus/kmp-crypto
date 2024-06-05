@@ -37,10 +37,10 @@ abstract class CryptoPrivateKey(val platform: Platform, var platformSpecifics: P
 /**
  * Nomen est omen. Used the `Crypto` prefix for reasons of consistency and better auto-completion without messing up imports on Android and the JVM
  */
-typealias CryptoKeyPair = Pair<CryptoPrivateKey, CryptoPublicKey.EC>
+typealias CryptoKeyPair = Pair<CryptoPrivateKey, CryptoPublicKey>
 
-val Pair<CryptoPrivateKey, CryptoPublicKey.EC>.public: CryptoPublicKey get() = second
-val Pair<CryptoPrivateKey, CryptoPublicKey.EC>.private: CryptoPrivateKey get() = first
+val Pair<CryptoPrivateKey, CryptoPublicKey>.public: CryptoPublicKey get() = second
+val Pair<CryptoPrivateKey, CryptoPublicKey>.private: CryptoPrivateKey get() = first
 
 /**
  * Little can be gained from abstracting away too many platform specifics, except for unwarranted complexity.

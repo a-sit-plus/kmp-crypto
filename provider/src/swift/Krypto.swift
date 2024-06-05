@@ -183,15 +183,15 @@ import LocalAuthentication
             await createP384Key()
         } else if alg == "ES512" {
             await createP521Key()
-        }/* else if alg == "RSA2048" {
-          await createRsaKey(size: 2048, access: access, props: props)
-          }*/ else {
+        } else if alg == "RSA2048" {
+           try  generateRSAKeyPair(keySize: 2048, alias: alias)
+          } else {
               throw RuntimeError("Illegal Algorithm: \(alg)")
           }
 
         if pub == nil { throw RuntimeError("Can't create private key") }
 
-        if alg.starts(with: "ES") {
+    //    if alg.starts(with: "ES") {
         print("Storing key with \(alias) in KeyChain")
             // SecureEnclave keys from CryptoKit shall be stored as "passwords"
             // (their data representation is an encrypted blob)
@@ -238,9 +238,57 @@ import LocalAuthentication
             guard pubStatus == errSecSuccess else {
                 throw RuntimeError("Can't store public key \(pubAlias):  \(pubStatus), \(SecCopyErrorMessageString(pubStatus, nil))")
             }
-        } //TODO RSA
+    //    }
         return pub!
     }
+
+    private class func generateRSAKeyPair(keySize: Int = 2048, alias: String) throws -> (privateKey: Data?, publicKey: Data?) {
+        guard let tag = Bundle.main.bundleIdentifier else{
+            throw RuntimeError("Can't store private key \(alias)")
+        }
+
+        guard let tagData = (tag+"-"+alias).data(using: .utf8) else {
+            throw RuntimeError("Can't store private key \(alias)")
+        }
+        guard let pubTagData = (tag+"-"+alias+"-"+SUFFIX_PUBKEY).data(using: .utf8) else {
+            throw RuntimeError("Can't store private key \(alias)")
+        }
+
+        let isPermanent = false
+        let attributes: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeRSA,
+            kSecAttrKeySizeInBits: keySize,
+            kSecPrivateKeyAttrs: [
+                kSecAttrIsPermanent: isPermanent,
+                kSecAttrApplicationTag: tagData,
+                kSecAttrKeyType: kSecAttrKeyTypeRSA // Add this line
+            ],
+            kSecPublicKeyAttrs: [
+                kSecAttrIsPermanent: isPermanent,
+                kSecAttrApplicationTag: pubTagData,
+                kSecAttrKeyType: kSecAttrKeyTypeRSA // Add this line
+            ]
+        ]
+
+        var error: Unmanaged<CFError>?
+        guard let privKey = SecKeyCreateRandomKey(attributes as CFDictionary, &error),
+              let pubKey = SecKeyCopyPublicKey(privKey) else {
+            throw  RuntimeError("RSA Key generation failed \(alias):  \(error) ")
+        }
+
+        guard let pubD = SecKeyCopyExternalRepresentation(pubKey, &error) else {
+            throw  RuntimeError("RSA Key generation failed \(alias):  \(error) ")
+
+        }
+        guard let privD = SecKeyCopyExternalRepresentation(privKey, &error) else {
+            throw  RuntimeError("RSA Key generation failed \(alias):  \(error) ")
+
+        }
+
+
+        return (privD as Data, pubD as Data)
+    }
+
 
     private class func createSecureEnclaveP256Key(_ access: SecAccessControl, _ authCtx:LAContext?) async -> (Data?, Data?) {
         guard let privateKey: SecureEnclave.P256.Signing.PrivateKey = try? SecureEnclave.P256.Signing.PrivateKey(compactRepresentable: true, accessControl: access, authenticationContext: authCtx) else {

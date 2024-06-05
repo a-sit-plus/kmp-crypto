@@ -11,6 +11,8 @@ import at.asitplus.crypto.datatypes.asn1.*
 import at.asitplus.crypto.datatypes.pki.CertificateChain
 import at.asitplus.crypto.datatypes.pki.X509Certificate
 import at.asitplus.swift.krypto.Krypto
+import io.github.aakira.napier.Napier
+import io.matthewnelson.component.encoding.base16.encodeBase16
 import kotlinx.cinterop.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -91,6 +93,7 @@ internal actual suspend fun createKey(
         alias,
         when (cryptoAlgorithm) {
             CryptoAlgorithm.ES256, CryptoAlgorithm.ES384, CryptoAlgorithm.ES512 -> cryptoAlgorithm.name
+            CryptoAlgorithm.RS256 -> "RSA2048"
             else -> return KmmResult.failure(
                 UnsupportedAlgorithmException(
                     cryptoAlgorithm,
@@ -106,6 +109,16 @@ internal actual suspend fun createKey(
         platformSpecifics.authCtx as objcnames.classes.LAContext?
     ) { derEncoded, err ->
         derEncoded?.let {
+            Napier.e("PubKey: ${it.toByteArray().encodeBase16()}")
+            val derEncodedKey = if (cryptoAlgorithm.isEc) it.toByteArray() else {
+                Asn1.Sequence {
+                    +Asn1.Sequence {
+                        +CryptoPublicKey.Rsa.oid
+                        +Asn1.Null()
+                    }
+                    +Asn1.BitString(it.toByteArray())
+                }.derEncoded
+            }
             key =
                 runCatching {
                     IosPrivateKey(
@@ -113,7 +126,8 @@ internal actual suspend fun createKey(
                         platformSpecifics.authContainer?.opsForUse ?: platformSpecifics
                     ).also {
                         it.authContainer = platformSpecifics.authContainer
-                    } to (CryptoPublicKey.decodeFromDer(it.toByteArray()) as CryptoPublicKey.EC)
+
+                    } to (CryptoPublicKey.decodeFromDer(derEncodedKey))
                 }.wrap()
             mut.unlock()
         }
