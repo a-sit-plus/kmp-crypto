@@ -20,6 +20,7 @@ import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSData
 import platform.Foundation.create
 import platform.posix.memcpy
+import kotlin.math.sign
 
 class IosPrivateKey(val alias: String, platformSpecifics: IosSpecificCryptoOps) :
     CryptoPrivateKey(Platform.iOS, platformSpecifics)
@@ -188,13 +189,14 @@ actual suspend fun signData(
     Krypto.sign(
         data.toNSData(),
         signingKey.alias,
-        algorithm.name,
+        if(algorithm.isEc )algorithm.name else "RSA2048",
         platformSpecifics.keyProperties.toMutableList().associate { (k, v) ->
             CFBridgingRelease(k) to CFBridgingRelease(v)
         },
         platformSpecifics.authCtx as objcnames.classes.LAContext?
     ) { signature, err ->
         signature?.let {
+            Napier.w{"Signature result: ${signature.toByteArray().encodeBase16()}"}
             res = KmmResult.success(signature.toByteArray())
             mut.unlock()
         }
@@ -205,7 +207,8 @@ actual suspend fun signData(
         }
     }
     mut.withLock {
-        return res!!.mapCatching { CryptoSignature.decodeFromDer(it) }.mapFailure { EncodingException(it.message, it) }
+        return res!!.mapCatching { if(algorithm.isEc)CryptoSignature.decodeFromDer(it) else CryptoSignature.RSAorHMAC(
+            kotlin.byteArrayOf(0.toByte(), *it)) }.mapFailure { EncodingException(it.message, it) }
     }
 }
 

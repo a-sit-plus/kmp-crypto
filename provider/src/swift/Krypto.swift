@@ -77,6 +77,44 @@ import LocalAuthentication
         }
     }
 
+    private class func signRSA(_ query: CFDictionary, _ data:Data) async throws -> Data {
+        var item: CFTypeRef?
+        let status: OSStatus = SecItemCopyMatching(query, &item)
+        switch status {
+        case errSecSuccess:
+            do {
+                guard let keyData = item as? Data
+                else {
+                    throw RuntimeError("Could not get private key for data \(data)")
+                }
+
+                let keyDict:[NSObject:NSObject] = [
+                   kSecAttrKeyType: kSecAttrKeyTypeRSA,
+                   kSecAttrKeyClass: kSecAttrKeyClassPrivate,
+                   kSecAttrKeySizeInBits: NSNumber(value: 2048),
+                   kSecReturnPersistentRef: true as NSObject
+                ]
+
+                print("creating key from data")
+                guard let privateKey =  SecKeyCreateWithData(keyData as CFData, keyDict as CFDictionary, nil) else {
+                    throw RuntimeError("Could not create private key from keyChain \(data)")
+                }
+
+                print("creating signature")
+                var error: Unmanaged<CFError>?
+                guard let signature = SecKeyCreateSignature(privateKey, .rsaSignatureDigestPKCS1v15SHA256, data as CFData, &error) else {
+                    throw RuntimeError("Error creating signature: \(error)")
+                }
+
+                return signature as Data
+            }catch {
+                throw RuntimeError("Error creating signature: \(error)")
+            }
+        default:
+            throw RuntimeError("could not load private key due to status \(status)")
+        }
+    }
+
     private class func signES384(_ query: CFDictionary, _ data:Data) throws -> Data {
         var item: CFTypeRef?
         let status: OSStatus = SecItemCopyMatching(query, &item)
@@ -130,6 +168,8 @@ import LocalAuthentication
                 try signES384(query, input)
             }else if alg == "ES512" {
                 try signES512(query, input)
+            }else if alg == "RSA2048" {
+                try await signRSA(query, input)
             } else {throw RuntimeError("Algorithm \(alg) not supported")}
         } catch {
             throw RuntimeError("Signature creation failed due to \(error)")
