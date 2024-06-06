@@ -43,6 +43,8 @@ kotlin {
         implementation(coroutines())
         implementation(napier())
         api(project(":datatypes"))
+        api(kotlincrypto.core.digest)
+        implementation(kotlincrypto.hash.sha1)
         implementation(kotlincrypto.hash.sha2)
         implementation(kotlincrypto.secureRandom)
     }

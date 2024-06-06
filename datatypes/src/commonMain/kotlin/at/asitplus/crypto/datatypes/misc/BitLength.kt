@@ -5,6 +5,12 @@ import kotlin.jvm.JvmInline
 
 @JvmInline
 value class BitLength (val bits: UInt): Comparable<BitLength> {
+    constructor(bits: Int): this(bits.toUInt())
+
+    /** how many bits are unused padding to get to the next full byte */
+    inline val bitSpacing: UInt get() =
+        bits.rem(8u).let { if (it != 0u) (8u-it) else 0u }
+
     inline val bytes: UInt get() =
         bits.floorDiv(8u) + (if(bits.rem(8u) != 0u) 1u else 0u)
 

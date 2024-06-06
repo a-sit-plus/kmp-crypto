@@ -1,59 +1,57 @@
 package at.asitplus.crypto.provider.sign
 
 import at.asitplus.crypto.datatypes.Digest
+import at.asitplus.crypto.datatypes.asn1.ensureSize
 import at.asitplus.crypto.datatypes.misc.BitLength
-import org.kotlincrypto.hash.sha2.SHA256
-import org.kotlincrypto.hash.sha2.SHA384
-import org.kotlincrypto.hash.sha2.SHA512
+import at.asitplus.crypto.provider.hash.digest
+import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.ionspin.kotlin.bignum.integer.Sign
 
+typealias SignatureInputFormat = Digest?
+private val RAW_BYTES: SignatureInputFormat = null
 class SignatureInput private constructor (
     val data: Sequence<ByteArray>,
-    val format: Format
+    val format: SignatureInputFormat
 ){
-
-    enum class Format {
-        RAW_BYTES,
-        SHA_256,
-        SHA_384,
-        SHA_512;
-
-        val fixedLength: BitLength? get() = when(this) {
-            RAW_BYTES -> null
-            SHA_256 -> 256u
-            SHA_384 -> 384u
-            SHA_512 -> 512u
-        }?.let(::BitLength)
-
-        fun canConvertTo(new: Format): Boolean = when (this) {
-            RAW_BYTES -> true
-            else -> (this == new)
-        }
-
-        fun convertTo(other: Format, data: Sequence<ByteArray>): Sequence<ByteArray> {
-            if (this == other) return data
-            require(canConvertTo(other))
-            return when (other) {
-                RAW_BYTES -> data
-                SHA_256 -> sequenceOf(SHA256().let { data.forEach(it::update); it.digest() })
-                SHA_384 -> sequenceOf(SHA384().let { data.forEach(it::update); it.digest() })
-                SHA_512 -> sequenceOf(SHA512().let { data.forEach(it::update); it.digest() })
-            }
-        }
-    }
 
     companion object {
         /** only use this if you know what you are doing */
-        fun unsafeCreate(data: ByteArray, format: Format): SignatureInput {
-            format.fixedLength?.let { require(data.size == it.bytes.toInt()) }
+        fun unsafeCreate(data: ByteArray, format: SignatureInputFormat): SignatureInput {
+            if (format != null)
+                require(data.size == format.outputLength.bytes.toInt())
+
             return SignatureInput(sequenceOf(data), format)
         }
     }
 
-    fun convertTo(format: Format): SignatureInput {
+    fun convertTo(format: SignatureInputFormat): SignatureInput {
         if (this.format == format) return this
-        return SignatureInput(this.format.convertTo(format, this.data), format)
+        if (this.format != RAW_BYTES) throw IllegalStateException("Cannot convert from ${this.format} to $format")
+        format!! /* RAW_BYTES is null; this is for the compiler */
+        return SignatureInput(sequenceOf(format.digest(this.data)), format)
     }
 
-    constructor(data: ByteArray) : this(sequenceOf(data), Format.RAW_BYTES)
-    constructor(data: Sequence<ByteArray>): this(data, Format.RAW_BYTES)
+    constructor(data: ByteArray) : this(sequenceOf(data), RAW_BYTES)
+    constructor(data: Sequence<ByteArray>): this(data, RAW_BYTES)
+
+    /**
+     * Takes the leftmost bits of the byte array, and converts them to an unsigned `BigInteger`.
+     *
+     * (This matches the ECDSA spec.)
+     */
+    fun asBigInteger(length: BitLength): BigInteger {
+        val target = length.bytes.toInt()
+        val dataIt = data.iterator()
+        var resultBytes = if(dataIt.hasNext()) dataIt.next() else byteArrayOf()
+        while (resultBytes.size < target) {
+            if (dataIt.hasNext()) resultBytes += dataIt.next().also { require(it.isNotEmpty()) }
+            else resultBytes = resultBytes.ensureSize(target)
+        }
+        if (resultBytes.size > target)
+            resultBytes = resultBytes.copyOfRange(0, target)
+        require(resultBytes.size == target)
+
+        val result = BigInteger.fromByteArray(resultBytes, Sign.POSITIVE)
+        return if (length.bitSpacing != 0u) result.shr(length.bitSpacing.toInt()) else result
+    }
 }
