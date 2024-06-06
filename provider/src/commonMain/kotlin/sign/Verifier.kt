@@ -10,8 +10,10 @@ class InvalidSignature(message: String): Throwable(message)
 sealed class Verifier(val signatureFormat: SignatureInputFormat) {
     abstract val publicKey: CryptoPublicKey
 
+    /** Verifies the signature. Throws `InvalidSignature` on failure. */
     @Throws(InvalidSignature::class)
-    abstract fun verify(data: SignatureInput, sig: CryptoSignature): Unit
+    abstract fun verify(data: SignatureInput, sig: CryptoSignature)
+    /** Verifies the signature. Throws `InvalidSignature` on failure. */
     inline fun verify(data: ByteArray, sig: CryptoSignature) =
         verify(SignatureInput(data), sig)
 

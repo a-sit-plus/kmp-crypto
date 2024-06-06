@@ -10,7 +10,6 @@ import at.asitplus.crypto.provider.sign.InvalidSignature
 import at.asitplus.crypto.provider.sign.Verifier
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.core.spec.style.FreeSpec
 import io.kotest.datatest.withData
 import org.bouncycastle.jce.provider.BouncyCastleProvider
