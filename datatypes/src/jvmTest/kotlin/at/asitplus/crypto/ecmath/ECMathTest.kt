@@ -728,4 +728,15 @@ class ECMathTest: FreeSpec({
             }
         }
     }
+    "Multiplication: Strauss-Shamir trick" - {
+        withData(ECCurve.entries) { curve ->
+            withData(nameFn = { (a, b, x, y) -> "(a=$a, b=$b, x=$x, y=$y)" },
+                generateSequence {
+                    Quadruple(curve.randomScalar(),curve.randomScalar(),curve.randomPoint(),curve.randomPoint())
+                }.take(10)
+            ) { (a, b, x, y) ->
+                straussShamir(a.residue,x,b.residue,y).tryNormalize() shouldBe ((a*x)+(b*y)).tryNormalize()
+            }
+        }
+    }
 })

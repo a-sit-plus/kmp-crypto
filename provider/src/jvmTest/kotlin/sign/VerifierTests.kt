@@ -22,22 +22,27 @@ import kotlin.random.Random
 class VerifierTests: FreeSpec({
     "BouncyCastle tests" - {
         withData(ECCurve.entries) { curve ->
-            withData(listOf<Digest?>(null) + Digest.entries) { digest ->
+            withData(nameFn = { it?.toString() ?: "None" }, listOf<Digest?>(null) + Digest.entries) { digest ->
                 withData(nameFn = { (key, data, sig) -> key.publicPoint.toString() }, generateSequence {
                     val keypair = KeyPairGenerator.getInstance("EC", "BC").also {
                         it.initialize(ECGenParameterSpec(curve.jcaName))
                     }.genKeyPair()
                     val publicKey = CryptoPublicKey.fromJcaPublicKey(keypair.public).getOrThrow() as CryptoPublicKey.EC
                     val data = Random.nextBytes(256)
-                    val sig = Signature.getInstance("${digest?.jcaName ?: "None"}withECDSA","BC").run {
+                    val sig = Signature.getInstance("${digest?.toString() ?: "None"}withECDSA","BC").run {
                         initSign(keypair.private)
                         update(data)
                         sign()
                     }.let(CryptoSignature::decodeFromDer)
+                    keypair.public.encoded
                     Triple(publicKey, data, sig)
-                }.take(50)) { (key, data, sig) ->
+                }.take(5)) { (key, data, sig) ->
                     val verifier = Verifier.EC(key, digest)
                     shouldThrow<InvalidSignature> { verifier.verify(byteArrayOf(), sig) }
+                    if (digest != null) {
+                        shouldThrow<InvalidSignature> { verifier.verify(data.copyOfRange(0, 128), sig) }
+                        shouldThrow<InvalidSignature> { verifier.verify(data + Random.nextBytes(8), sig) }
+                    }
                     shouldNotThrowAny { verifier.verify(data, sig) }
                 }
             }

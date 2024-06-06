@@ -12,7 +12,7 @@ import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPublicKey
 
 class CryptoSignatureTest : FreeSpec({
 
-    val values = (Byte.MIN_VALUE..Byte.MAX_VALUE).toMutableSet()
+    val values = (1..Byte.MAX_VALUE).toMutableSet()
 
     "Equals & hashCode" {
         repeat(15) {

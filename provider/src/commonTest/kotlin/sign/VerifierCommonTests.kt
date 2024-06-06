@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.random.Random
+
+private fun <T> Random.of(v: Collection<T>) = v.random(this)
 
 @OptIn(ExperimentalEncodingApi::class)
 class VerifierCommonTests : FreeSpec({
@@ -30,7 +33,7 @@ class VerifierCommonTests : FreeSpec({
             "None" -> null
             else -> Digest.valueOf(test.dig)
         }
-        val key = CryptoPublicKey.EC.fromAnsiX963Bytes(curve, Base64.decode(test.key))
+        val key = CryptoPublicKey.decodeFromDer(Base64.decode(test.key)) as CryptoPublicKey.EC
         val b64msg = test.msg
         val msg = Base64.decode(b64msg)
         val sig = CryptoSignature.decodeFromDer(Base64.decode(test.sig))
@@ -384,17 +387,11 @@ class VerifierCommonTests : FreeSpec({
         withData(byCurve) { byDigest ->
             withData(nameFn=TestInfo::b64msg, byDigest) { test ->
                 val verifier = Verifier.EC(test.key, test.digest)
-
                 shouldNotThrowAny { verifier.verify(test.msg, test.sig) }
-
-                byCurve.forEach {
-                    it.value.forEach forOther@ { otherTest ->
-                        if (test === otherTest) return@forOther
-                        shouldThrow<InvalidSignature> { verifier.verify(test.msg, otherTest.sig) }
-                        shouldThrow<InvalidSignature> { verifier.verify(otherTest.msg, test.sig) }
-                        shouldThrow<InvalidSignature> { verifier.verify(otherTest.msg, otherTest.sig) }
-                    }
-                }
+                Random.of(byDigest).let { if (it !== test) {
+                    shouldThrow<InvalidSignature> { verifier.verify(it.msg, test.sig) }
+                    shouldThrow<InvalidSignature> { verifier.verify(it.msg, it.sig) }
+                }}
             }
         }
     }

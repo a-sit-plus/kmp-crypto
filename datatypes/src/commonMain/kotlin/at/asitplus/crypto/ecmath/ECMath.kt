@@ -3,6 +3,7 @@ package at.asitplus.crypto.ecmath
 import at.asitplus.crypto.datatypes.ECPoint
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.modular.ModularBigInteger
+import kotlin.math.max
 
 /** adds `other` to `this` and returns the result */
 /* Algorithm 4 from https://eprint.iacr.org/2015/1060.pdf */
@@ -134,11 +135,11 @@ operator fun BigInteger.times(point: ECPoint): ECPoint {
     var o = point
     var sum = if (this.bitAt(0)) point else point.curve.IDENTITY
     /* double-and-add */
-    for (i in 1..this.bitLength()) {
+    for (i in 1L..<this.bitLength()) {
         /* we double o on each iteration (it is (2^i)*point) */
         o = o.double()
         /* and decide whether to add it based on the bit */
-        if (this.bitAt(i.toLong())) sum += o
+        if (this.bitAt(i)) sum += o
     }
     return sum
 }
@@ -164,3 +165,21 @@ inline fun ECPoint.times(v: Int) = v * this
 inline fun ECPoint.times(v: UInt) = v * this
 inline fun ECPoint.times(v: Long) = v * this
 inline fun ECPoint.times(v: ULong) = v * this
+
+/** computes uG+vQ */
+fun straussShamir(u: BigInteger, G: ECPoint, v: BigInteger, Q: ECPoint): ECPoint {
+    val H = G+Q
+    val uL = u.bitLength()
+    val vL = v.bitLength()
+    var i = max(uL,vL).toLong()-1
+    var R = if(uL > vL) G else if (uL < vL) Q else H
+    while (--i >= 0) {
+        R = R.double()
+        val b = u.bitAt(i)
+        val c = v.bitAt(i)
+        if (b && c) R += H
+        else if (b) R += G
+        else if (c) R += Q
+    }
+    return R
+}

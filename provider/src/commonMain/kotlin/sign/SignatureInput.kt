@@ -45,13 +45,17 @@ class SignatureInput private constructor (
         var resultBytes = if(dataIt.hasNext()) dataIt.next() else byteArrayOf()
         while (resultBytes.size < target) {
             if (dataIt.hasNext()) resultBytes += dataIt.next().also { require(it.isNotEmpty()) }
-            else resultBytes = resultBytes.ensureSize(target)
+            else break
         }
         if (resultBytes.size > target)
             resultBytes = resultBytes.copyOfRange(0, target)
-        require(resultBytes.size == target)
+        require(resultBytes.size <= target)
 
-        val result = BigInteger.fromByteArray(resultBytes, Sign.POSITIVE)
-        return if (length.bitSpacing != 0u) result.shr(length.bitSpacing.toInt()) else result
+        return BigInteger.fromByteArray(resultBytes, Sign.POSITIVE).let {
+            if ((resultBytes.size == target) && (length.bitSpacing != 0u))
+                it.shr(length.bitSpacing.toInt())
+            else
+                it
+        }
     }
 }

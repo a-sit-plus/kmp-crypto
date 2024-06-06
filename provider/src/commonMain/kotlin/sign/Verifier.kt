@@ -3,6 +3,7 @@ package at.asitplus.crypto.provider.sign
 import at.asitplus.crypto.datatypes.CryptoPublicKey
 import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.ecmath.plus
+import at.asitplus.crypto.ecmath.straussShamir
 import at.asitplus.crypto.ecmath.times
 
 class InvalidSignature(message: String): Throwable(message)
@@ -40,7 +41,7 @@ sealed class Verifier(val signatureFormat: SignatureInputFormat) {
             val sInv = sig.s.modInverse(curve.order)
             val u1 = z * sInv
             val u2 = sig.r * sInv
-            val point = ((u1 * curve.generator) + (u2 * publicKey.publicPoint)).run {
+            val point = straussShamir(u1, curve.generator, u2, publicKey.publicPoint).run {
                     tryNormalize() ?: throw InvalidSignature("(x1,y1) = additive zero") }
             test(point.x.residue.mod(curve.order) == sig.r.mod(curve.order)) { "r != x1" }
         }
