@@ -51,6 +51,8 @@ class AndroidSignerConfiguration: SignerConfiguration() {
         var description: String? = null
         var confirmationRequired: Boolean? = null
         var allowedAuthenticators: Int? = null
+        /** if the provided fingerprint could not be matched, but the user will be allowed to retry */
+        var invalidBiometryCallback: (()->Unit)? = null
     }
     override val unlockPrompt = child(::AuthnPrompt)
 }
@@ -94,6 +96,9 @@ class AndroidKeyStoreProvider private constructor(
                 }
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     send(AuthResult.Error(errorCode, errString.toString()))
+                }
+                override fun onAuthenticationFailed() {
+                    config.invalidBiometryCallback?.invoke()
                 }
             }
             val prompt = when (context) {
