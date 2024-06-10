@@ -211,6 +211,6 @@ class AndroidKeyStoreProvider private constructor(
     override fun getSignerForKey(alias: String, configure: (AndroidSignerConfiguration.()->Unit)?) =
         Signer(alias, DSL.resolve(::AndroidSignerConfiguration, configure))
     override fun deleteSigningKey(alias: String) {
-        TODO("Not yet implemented")
+        ks.deleteEntry(alias)
     }
 }
