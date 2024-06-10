@@ -36,6 +36,8 @@ import java.security.PrivateKey
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.RSAKeyGenParameterSpec
+import java.time.Instant
+import java.util.Date
 import javax.security.auth.x500.X500Principal
 
 private sealed interface FragmentContext {
@@ -46,7 +48,7 @@ private sealed interface FragmentContext {
 class AndroidSigningKeyConfiguration: SigningKeyConfiguration()
 
 class AndroidSignerConfiguration: SignerConfiguration() {
-    open class AuthnPrompt: SignerConfiguration.AuthnPrompt() {
+    class AuthnPrompt: SignerConfiguration.AuthnPrompt() {
         var subtitle: String? = null
         var description: String? = null
         var confirmationRequired: Boolean? = null
@@ -196,7 +198,7 @@ class AndroidKeyStoreProvider private constructor(
                     ECGenParameterSpec(algSpec.curve.jcaName)
             })
             setDigests(config.digest.jcaName)
-            //setCertificateNotBefore() TODO
+            setCertificateNotBefore(Date.from(Instant.now()))
             setCertificateSubject(X500Principal("CN=$alias")) // TODO
             config.attestation.v?.let {
                 setAttestationChallenge(it.challenge!!)
