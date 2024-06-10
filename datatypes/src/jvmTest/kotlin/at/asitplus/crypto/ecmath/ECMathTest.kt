@@ -739,4 +739,12 @@ class ECMathTest: FreeSpec({
             }
         }
     }
+    "Multiplication: Montgomery ladder" - {
+        withData(ECCurve.entries) { curve ->
+            withData(generateSequence { Pair(curve.randomScalar(), curve.randomPoint())}.take(10))
+            { (k,P) ->
+                montgomeryMul(k.residue,P) shouldBe (k*P)
+            }
+        }
+    }
 })

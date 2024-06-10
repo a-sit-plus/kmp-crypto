@@ -183,3 +183,20 @@ fun straussShamir(u: BigInteger, G: ECPoint, v: BigInteger, Q: ECPoint): ECPoint
     }
     return R
 }
+
+/** computes pQ in constant time */
+fun montgomeryMul(k: BigInteger, P: ECPoint): ECPoint {
+    var R0 = P
+    var R1 = P.double()
+    var i = k.bitLength().toLong()-1
+    while (--i >= 0) {
+        if (k.bitAt(i)) {
+            R0 = (R0+R1)
+            R1 = R1.double()
+        } else {
+            R1 = (R0+R1)
+            R0 = R0.double()
+        }
+    }
+    return R0
+}
