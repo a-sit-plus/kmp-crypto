@@ -5,6 +5,8 @@ import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.datatypes.Digest
 import at.asitplus.crypto.datatypes.ECCurve
 import at.asitplus.crypto.provider.sign.InvalidSignature
+import at.asitplus.crypto.provider.sign.KotlinECVerifier
+import at.asitplus.crypto.provider.sign.PlatformECVerifier
 import at.asitplus.crypto.provider.sign.Verifier
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
@@ -383,15 +385,19 @@ class VerifierCommonTests : FreeSpec({
         .groupBy(RawTestInfo::crv)
         .mapValues { it.value.groupBy(RawTestInfo::dig).mapValues { (_,v) -> v.map(::TestInfo) } }
 
-    withData(tests) { byCurve ->
-        withData(byCurve) { byDigest ->
-            withData(nameFn=TestInfo::b64msg, byDigest) { test ->
-                val verifier = Verifier.EC(test.key, test.digest)
-                shouldNotThrowAny { verifier.verify(test.msg, test.sig) }
-                Random.of(byDigest).let { if (it !== test) {
-                    shouldThrow<InvalidSignature> { verifier.verify(it.msg, test.sig) }
-                    shouldThrow<InvalidSignature> { verifier.verify(it.msg, it.sig) }
-                }}
+    withData(mapOf("Kotlin" to ::KotlinECVerifier, "Platform" to ::PlatformECVerifier)) { factory ->
+        withData(tests) { byCurve ->
+            withData(byCurve) { byDigest ->
+                withData(nameFn = TestInfo::b64msg, byDigest) { test ->
+                    val verifier = factory(test.key, test.digest)
+                    shouldNotThrowAny { verifier.verify(test.msg, test.sig) }
+                    Random.of(byDigest).let {
+                        if (it !== test) {
+                            shouldThrow<InvalidSignature> { verifier.verify(it.msg, test.sig) }
+                            shouldThrow<InvalidSignature> { verifier.verify(it.msg, it.sig) }
+                        }
+                    }
+                }
             }
         }
     }
