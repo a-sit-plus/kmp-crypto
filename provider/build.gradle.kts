@@ -21,7 +21,7 @@ plugins {
 val kmp_crypto: String by project
 
 
-version = "0.0.3-SNAPSHOT"
+version = "0.0.4-SNAPSHOT"
 
 kotlin {
     jvm()

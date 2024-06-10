@@ -100,9 +100,9 @@ import LocalAuthentication
                     throw RuntimeError("Could not create private key from keyChain \(data)")
                 }
 
-                print("creating signature")
+                print("creating signature for message")
                 var error: Unmanaged<CFError>?
-                guard let signature = SecKeyCreateSignature(privateKey, .rsaSignatureDigestPKCS1v15SHA256, data as CFData, &error) else {
+                guard let signature = SecKeyCreateSignature(privateKey, .rsaSignatureMessagePKCS1v15SHA256, data as CFData, &error) else {
                     throw RuntimeError("Error creating signature: \(error)")
                 }
 
