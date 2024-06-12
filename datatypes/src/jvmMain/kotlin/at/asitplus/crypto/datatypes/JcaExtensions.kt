@@ -64,6 +64,15 @@ val Digest.jcaName
         Digest.SHA1 -> "SHA-1"
     }
 
+
+val Digest?.jcaAlgorithmComponent get() = when (this) {
+    null -> "None"
+    Digest.SHA1 -> "SHA1"
+    Digest.SHA256 -> "SHA256"
+    Digest.SHA384 -> "SHA384"
+    Digest.SHA512 -> "SHA512"
+}
+
 val ECCurve.jcaName
     get() = when (this) {
         ECCurve.SECP_256_R_1 -> "secp256r1"

@@ -21,5 +21,4 @@ enum class Digest(override val oid: ObjectIdentifier) : Identifiable {
         SHA384 -> 384u
         SHA512 -> 512u
     }.let(::BitLength)
-
 }

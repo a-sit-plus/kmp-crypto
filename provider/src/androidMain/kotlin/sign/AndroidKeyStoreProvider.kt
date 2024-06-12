@@ -118,7 +118,7 @@ class AndroidKeyStoreProvider private constructor(
         }
     }
 
-    inner class Signer internal constructor(val alias: String, val config: AndroidSignerConfiguration): SignerI {
+    inner class Signer internal constructor(private val alias: String, private val config: AndroidSignerConfiguration): SignerI {
         private val jcaPrivateKey = ks.getKey(alias, null) as PrivateKey
         override val publicKey get() = certificateChain.leaf.publicKey
         override val certificateChain: CertificateChain by lazy {
@@ -148,6 +148,7 @@ class AndroidKeyStoreProvider private constructor(
         override fun sign(data: SignatureInput): CryptoSignature =
             Signature.getInstance(jcaPrivateKey.algorithm).runCatching {
                 initSign(jcaPrivateKey)
+                require(data.format == null) // TODO
                 data.data.forEach(this::update)
                 sign()
             }.getOrElse {
@@ -158,7 +159,7 @@ class AndroidKeyStoreProvider private constructor(
             }.let(CryptoSignature::decodeFromDer)
 
         override suspend fun unlockAndSign(data: SignatureInput): CryptoSignature =
-            Signature.getInstance(jcaPrivateKey.algorithm).let {
+            Signature.getInstance(jcaPrivateKey.algorithm, "AndroidKeyStore").let {
                 if (needsAuthenticationForEveryUse) {
                     /* authentication before use */
                     it.initSign(jcaPrivateKey)

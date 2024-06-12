@@ -1,4 +1,4 @@
-package at.asitplus.crypto.provider
+/*package at.asitplus.crypto.provider
 
 import at.asitplus.KmmResult
 import at.asitplus.crypto.datatypes.CryptoAlgorithm
@@ -254,4 +254,4 @@ internal expect suspend fun doStoreCertificateChain(
 internal expect suspend fun doGetCertificateChain(
     alias: String,
     platformSpecifics: PlatformCryptoOpts?
-): KmmResult<CertificateChain>
+): KmmResult<CertificateChain>*/

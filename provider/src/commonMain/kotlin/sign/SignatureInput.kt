@@ -8,13 +8,6 @@ import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.Sign
 
 typealias SignatureInputFormat = Digest?
-internal val SignatureInputFormat.jcaAlgorithmComponent get() = when (this) {
-    null -> "None"
-    Digest.SHA1 -> "SHA1"
-    Digest.SHA256 -> "SHA256"
-    Digest.SHA384 -> "SHA384"
-    Digest.SHA512 -> "SHA512"
-}
 private val RAW_BYTES: SignatureInputFormat = null
 class SignatureInput private constructor (
     val data: Sequence<ByteArray>,

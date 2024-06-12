@@ -5,13 +5,13 @@ import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.datatypes.Digest
 import at.asitplus.crypto.datatypes.ECCurve
 import at.asitplus.crypto.datatypes.fromJcaPublicKey
+import at.asitplus.crypto.datatypes.jcaAlgorithmComponent
 import at.asitplus.crypto.datatypes.jcaName
 import at.asitplus.crypto.provider.sign.InvalidSignature
 import at.asitplus.crypto.provider.sign.KotlinECVerifier
 import at.asitplus.crypto.provider.sign.PlatformECVerifier
 import at.asitplus.crypto.provider.sign.SignatureInputFormat
 import at.asitplus.crypto.provider.sign.Verifier
-import at.asitplus.crypto.provider.sign.jcaAlgorithmComponent
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FreeSpec

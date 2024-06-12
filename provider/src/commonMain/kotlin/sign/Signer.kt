@@ -12,6 +12,19 @@ interface Signer {
     val certificateChain: CertificateChain
 
     /**
+     * Whether this signer can perform signatures over pre-hashed data (`true`)
+     * or requires a raw message (`false`), calculating the message digest internally.
+     */
+    val flexibleInput: Boolean
+
+    /**
+     * The format over which the signer naturally produces signatures.
+     *
+     * If `requiresRawInput` is `false`, other formats can be passed, and will be signed.
+     */
+    val nativeSignatureFormat: SignatureInputFormat
+
+    /**
      * Attempts to unlock this signer ahead of time.
      * This is not possible for all signers, and may fail.
      */
@@ -24,6 +37,7 @@ interface Signer {
      */
     @Throws(UnlockFailed::class, CancellationException::class)
     suspend fun unlockAndSign(data: SignatureInput): CryptoSignature
+    suspend fun unlockAndSign(data: ByteArray) = unlockAndSign(SignatureInput(data))
 
     /**
      * Signs the input with this signer.
@@ -31,4 +45,5 @@ interface Signer {
      */
     @Throws(UnlockRequired::class)
     fun sign(data: SignatureInput): CryptoSignature
+    fun sign(data: ByteArray) = sign(SignatureInput(data))
 }

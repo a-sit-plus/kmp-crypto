@@ -18,7 +18,7 @@ class AuthenticationException(msg: String) : CryptoException(msg)
 /**
  * The provided [platformCryptoOpts] to not fit the requested operation
  */
-class InvalidParameterException(val platformCryptoOpts: PlatformCryptoOpts?, msg: String) : CryptoException(msg)
+//class InvalidParameterException(val platformCryptoOpts: PlatformCryptoOpts?, msg: String) : CryptoException(msg)
 
 /**
  * The cryptographic operation did not succeed.
