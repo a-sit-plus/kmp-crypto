@@ -162,3 +162,8 @@
 * Rework CryptoSignature to two-dimensional interface:
   * CryptoSignature <- {EC <- {IndefiniteLength, DefiniteLength}, RsaOrHmac}
   * CryptoSignature <- {RawByteEncodable <- {EC.DefiniteLength, RsaOrHmac}, NotRawByteEncodable <- EC.IndefiniteLength}
+
+### 3.2.1
+
+**Fixes**
+ * Correct serialization of COSE signature structures
