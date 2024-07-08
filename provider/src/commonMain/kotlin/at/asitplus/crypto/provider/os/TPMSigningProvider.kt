@@ -29,9 +29,9 @@ open class SigningKeyConfiguration internal constructor(): DSL.Data() {
 open class PlatformSigningKeyConfiguration<PlatformSignerConfiguration: SignerConfiguration> internal constructor(): SigningKeyConfiguration() {
     open class AttestationConfiguration: DSL.Data() {
         /** The server-provided attestation challenge */
-        var challenge: ByteArray? = null
+        lateinit var challenge: ByteArray
         override fun validate() {
-            require(challenge != null) { "Server-provided attestation challenge must be set" }
+            require(this::challenge.isInitialized) { "Server-provided attestation challenge must be set" }
         }
     }
     open val attestation = childOrNull(::AttestationConfiguration)
