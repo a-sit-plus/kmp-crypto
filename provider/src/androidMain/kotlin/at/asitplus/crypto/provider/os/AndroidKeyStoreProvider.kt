@@ -47,7 +47,9 @@ private sealed interface FragmentContext {
 }
 
 
-class AndroidSigningKeyConfiguration: PlatformSigningKeyConfiguration<AndroidSignerConfiguration>()
+class AndroidSigningKeyConfiguration: PlatformSigningKeyConfiguration<AndroidSignerConfiguration>() {
+
+}
 
 class AndroidSignerConfiguration: SignerConfiguration() {
     class AuthnPrompt: SignerConfiguration.AuthnPrompt() {

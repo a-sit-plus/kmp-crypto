@@ -37,6 +37,8 @@ open class PlatformSigningKeyConfiguration<PlatformSignerConfiguration: SignerCo
     open val attestation = childOrNull(::AttestationConfiguration)
 
     open val signer = integratedReceiver<PlatformSignerConfiguration>()
+
+    // TODO: figure out a reasonable common interface for biometry requirements
 }
 
 open class SignerConfiguration internal constructor(): DSL.Data() {
