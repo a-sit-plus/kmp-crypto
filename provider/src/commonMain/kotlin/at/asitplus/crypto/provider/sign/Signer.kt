@@ -1,26 +1,32 @@
 package at.asitplus.crypto.provider.sign
 
 import at.asitplus.KmmResult
+import at.asitplus.catching
 import at.asitplus.crypto.datatypes.CryptoPublicKey
 import at.asitplus.crypto.datatypes.CryptoSignature
-import at.asitplus.crypto.datatypes.SignatureAlgorithm
+import at.asitplus.crypto.datatypes.pki.CertificateChain
+import at.asitplus.crypto.provider.UnlockFailed
 
-sealed interface Signer {
-    val signatureAlgorithm: SignatureAlgorithm
+interface Signer {
     val publicKey: CryptoPublicKey
-
 
     /** Any [Signer] instantiation must be [EC] or [RSA] */
     sealed interface AlgTrait : Signer
 
     /** ECDSA signer */
     interface EC : Signer.AlgTrait {
-        override val signatureAlgorithm: SignatureAlgorithm.ECDSA
         override val publicKey: CryptoPublicKey.EC
     }
 
     /** RSA signer */
-    interface RSA : Signer.AlgTrait
+    interface RSA : Signer.AlgTrait {
+        override val publicKey: CryptoPublicKey.Rsa
+    }
+
+    /** Some [Signer]s have a certificate chain of some sort */
+    interface Attested: Signer {
+        val certificateChain: CertificateChain
+    }
 
     /** Any [Signer] is either [Unlocked] or [Unlockable] */
     sealed interface UnlockTrait: Signer
@@ -87,6 +93,19 @@ suspend fun Signer.sign(data: SignatureInput): KmmResult<CryptoSignature> {
     return when (this) {
         is Signer.Unlocked -> sign(data)
         is Signer.Unlockable -> sign(data)
+    }
+}
+
+/**
+ * Try to batch sign with this signer.
+ * Might fail for unlockable signers that cannot be temporarily unlocked.
+ */
+suspend fun <T> Signer.withUnlock(fn: Signer.Unlocked.()->T) = catching {
+    this as Signer.UnlockTrait
+    when (this) {
+        is Signer.Unlocked -> this.fn()
+        is Signer.TemporarilyUnlockable<*> -> this.withUnlock(fn).getOrThrow()
+        is Signer.Unlockable -> throw UnlockFailed("This signer needs authentication for every use")
     }
 }
 

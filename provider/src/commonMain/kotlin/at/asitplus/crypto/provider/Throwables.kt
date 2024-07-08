@@ -4,3 +4,5 @@ sealed class CryptoException(message: String? = null, cause: Throwable? = null) 
 class CryptoOperationFailed(message: String) : CryptoException(message)
 
 class UnsupportedCryptoException(message: String? = null, cause: Throwable? = null) : CryptoException(message, cause)
+
+class UnlockFailed(message: String? = null, cause: Throwable? = null) : Throwable(message, cause)
