@@ -34,7 +34,13 @@ open class PlatformSigningKeyConfiguration<PlatformSignerConfiguration: SignerCo
             require(this::challenge.isInitialized) { "Server-provided attestation challenge must be set" }
         }
     }
-    open val attestation = childOrNull(::AttestationConfiguration)
+
+    open class TPMConfiguration: DSL.Data() {
+        open val attestation = childOrNull(::AttestationConfiguration)
+    }
+
+    open val tpm = childOrNull(::TPMConfiguration)
+
 
     open val signer = integratedReceiver<PlatformSignerConfiguration>()
 

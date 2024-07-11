@@ -111,18 +111,22 @@ sealed class AndroidKeyStoreProviderImpl<SignerT: AndroidKeystoreSigner> private
         ).apply {
             when(val algSpec = config._algSpecific.v) {
                 is SigningKeyConfiguration.RSAConfiguration -> {
-                    RSAKeyGenParameterSpec(algSpec.bits, algSpec.publicExponent.toJavaBigInteger())
+                    setAlgorithmParameterSpec(
+                        RSAKeyGenParameterSpec(algSpec.bits, algSpec.publicExponent.toJavaBigInteger()))
                     setDigests(algSpec.digest.jcaName)
                 }
                 is SigningKeyConfiguration.ECConfiguration -> {
-                    ECGenParameterSpec(algSpec.curve.jcaName)
+                    setAlgorithmParameterSpec(ECGenParameterSpec(algSpec.curve.jcaName))
                     setDigests(algSpec.digest.jcaName)
                 }
             }
             setCertificateNotBefore(Date.from(Instant.now()))
             setCertificateSubject(X500Principal("CN=$alias")) // TODO
-            config.attestation.v?.let {
-                setAttestationChallenge(it.challenge)
+            config.tpm.v?.let { tpm ->
+                setIsStrongBoxBacked(true)
+                tpm.attestation.v?.let {
+                    setAttestationChallenge(it.challenge)
+                }
             }
         }.build()
         KeyPairGenerator.getInstance(when(config._algSpecific.v) {

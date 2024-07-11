@@ -15,7 +15,14 @@ import kotlin.random.Random
 class AndroidKeyStoreProviderTests: FreeSpec({
     "Create attested keypair" {
         val alias = Random.azstring(32)
-        val hardwareSigner = AndroidKeyStoreProvider().createSigningKey(alias).getOrThrow()
+        val attestChallenge = Random.nextBytes(32)
+        val hardwareSigner = AndroidKeyStoreProvider().createSigningKey(alias) {
+            tpm {
+                attestation {
+                    challenge = attestChallenge
+                }
+            }
+        }.getOrThrow()
         val publicKey = hardwareSigner.publicKey
         publicKey.shouldBeInstanceOf<CryptoPublicKey.EC>()
 
@@ -24,5 +31,8 @@ class AndroidKeyStoreProviderTests: FreeSpec({
 
         SignatureAlgorithm.ECDSAwithSHA256.verifierFor(publicKey).getOrThrow()
             .verify(plaintext, signature).getOrThrow()
+
+        val certificateChain = hardwareSigner.certificateChain
+        // TODO verify attestation
     }
 })
