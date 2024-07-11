@@ -126,8 +126,8 @@ sealed class AndroidKeyStoreProviderImpl<SignerT: AndroidKeystoreSigner> private
             }
         }.build()
         KeyPairGenerator.getInstance(when(config._algSpecific.v) {
-            is SigningKeyConfiguration.RSAConfiguration -> "RSA"
-            is SigningKeyConfiguration.ECConfiguration -> "EC"
+            is SigningKeyConfiguration.RSAConfiguration -> KeyProperties.KEY_ALGORITHM_RSA
+            is SigningKeyConfiguration.ECConfiguration -> KeyProperties.KEY_ALGORITHM_EC
         }, "AndroidKeyStore").apply {
             initialize(spec)
         }.generateKeyPair()
