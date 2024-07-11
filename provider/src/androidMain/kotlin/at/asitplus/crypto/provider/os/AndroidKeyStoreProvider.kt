@@ -41,7 +41,7 @@ import java.util.Date
 import javax.security.auth.x500.X500Principal
 import java.security.Signature as JCASignatureObject
 
-private sealed interface FragmentContext {
+internal sealed interface FragmentContext {
     @JvmInline value class OfActivity(val activity: FragmentActivity): FragmentContext
     @JvmInline value class OfFragment(val fragment: Fragment): FragmentContext
 }
@@ -63,21 +63,159 @@ class AndroidSignerConfiguration: SignerConfiguration() {
     override val unlockPrompt = child(::AuthnPrompt)
 }
 
-class AndroidKeyStoreProvider private constructor (
-    private val context: FragmentContext) :
-    TPMSigningProviderI<AndroidKeyStoreProvider.LockedSigner, AndroidSignerConfiguration, AndroidSigningKeyConfiguration>
+sealed class AndroidKeyStoreProviderImpl<SignerT: AndroidKeystoreSigner> private constructor() :
+    TPMSigningProviderI<SignerT, AndroidSignerConfiguration, AndroidSigningKeyConfiguration>
 {
 
-    constructor(activity: FragmentActivity) : this(FragmentContext.OfActivity(activity))
-    constructor(fragment: Fragment) : this(FragmentContext.OfFragment(fragment))
+    class WithoutContext internal constructor() :
+        AndroidKeyStoreProviderImpl<UnlockedAndroidKeystoreSigner>()
+    {
+        override val context get() = null
+    }
 
-    private val executor = when (context) {
-        is FragmentContext.OfActivity -> ContextCompat.getMainExecutor(context.activity)
-        is FragmentContext.OfFragment -> ContextCompat.getMainExecutor(context.fragment.context)
+    class WithContext internal constructor(override val context: FragmentContext) :
+        AndroidKeyStoreProviderImpl<AndroidKeystoreSigner>()
+
+    companion object {
+        /**
+         * Instantiate the keystore provider without associating an activity or fragment.
+         * Biometric authentication will be impossible.
+         */
+        operator fun invoke() =
+            WithoutContext()
+
+        /**
+         * Instantiate the keystore provider associated with this particular activity.
+         */
+        operator fun invoke(activity: FragmentActivity) =
+            WithContext(FragmentContext.OfActivity(activity))
+
+        /**
+         * Instantiate the keystore provider associated with this particular fragment.
+         */
+        operator fun invoke(fragment: Fragment) =
+            WithContext(FragmentContext.OfFragment(fragment))
     }
 
     private val ks: KeyStore =
         KeyStore.getInstance("AndroidKeyStore").apply { load(null, null) }
+
+    final override fun createSigningKey(
+        alias: String,
+        configure: DSLConfigureFn<AndroidSigningKeyConfiguration>
+    ) = catching {
+        val config = DSL.resolve(::AndroidSigningKeyConfiguration, configure)
+        val spec = KeyGenParameterSpec.Builder(
+            alias,
+            KeyProperties.PURPOSE_SIGN
+        ).apply {
+            when(val algSpec = config._algSpecific.v) {
+                is SigningKeyConfiguration.RSAConfiguration -> {
+                    RSAKeyGenParameterSpec(algSpec.bits, algSpec.publicExponent.toJavaBigInteger())
+                    setDigests(algSpec.digest.jcaName)
+                }
+                is SigningKeyConfiguration.ECConfiguration -> {
+                    ECGenParameterSpec(algSpec.curve.jcaName)
+                    setDigests(algSpec.digest.jcaName)
+                }
+            }
+            setCertificateNotBefore(Date.from(Instant.now()))
+            setCertificateSubject(X500Principal("CN=$alias")) // TODO
+            config.attestation.v?.let {
+                setAttestationChallenge(it.challenge)
+            }
+        }.build()
+        KeyPairGenerator.getInstance(when(config._algSpecific.v) {
+            is SigningKeyConfiguration.RSAConfiguration -> "RSA"
+            is SigningKeyConfiguration.ECConfiguration -> "EC"
+        }, "AndroidKeyStore").apply {
+            initialize(spec)
+        }.generateKeyPair()
+        return@catching getSignerForKey(alias, config.signer.v).getOrThrow()
+    }
+
+    internal abstract val context: FragmentContext?
+
+    final override fun getSignerForKey(
+        alias: String,
+        configure: DSLConfigureFn<AndroidSignerConfiguration>
+    ): KmmResult<SignerT> = catching {
+        val jcaPrivateKey = ks.getKey(alias, null) as PrivateKey
+        val config = DSL.resolve(::AndroidSignerConfiguration, configure)
+        val certificateChain =
+            ks.getCertificateChain(alias).map { X509Certificate.decodeFromDer(it.encoded) }
+        val keyInfo = KeyFactory.getInstance(jcaPrivateKey.algorithm, "AndroidKeyStore")
+            .getKeySpec(jcaPrivateKey, KeyInfo::class.java)
+
+        val result: AndroidKeystoreSigner = if (keyInfo.isUserAuthenticationRequired) {
+            val ctx = context
+                ?: throw IllegalStateException("Key requires biometric authentication, but no fragment/activity context is available.")
+            when (certificateChain.leaf.publicKey) {
+                is CryptoPublicKey.EC -> LockedAndroidKeystoreSigner.EC(ctx, jcaPrivateKey, keyInfo, config, certificateChain)
+                is CryptoPublicKey.Rsa -> LockedAndroidKeystoreSigner.RSA(ctx, jcaPrivateKey, keyInfo, config, certificateChain)
+            }
+        } else {
+            val jcaSig = JCASignatureObject.getInstance(jcaPrivateKey.algorithm, "AndroidKeyStore")
+                .also {it.initSign(jcaPrivateKey) }
+            when (val publicKey = certificateChain.leaf.publicKey) {
+                is CryptoPublicKey.EC -> UnlockedAndroidKeystoreSigner.EC(jcaSig, keyInfo, certificateChain, publicKey)
+                is CryptoPublicKey.Rsa -> UnlockedAndroidKeystoreSigner.RSA(jcaSig, keyInfo, certificateChain, publicKey)
+            }
+        }
+        @Suppress("UNCHECKED_CAST")
+        return@catching result as SignerT
+    }
+
+    final override fun deleteSigningKey(alias: String) {
+        ks.deleteEntry(alias)
+    }
+}
+
+typealias AndroidKeyStoreProvider = AndroidKeyStoreProviderImpl<*>
+
+interface AndroidKeystoreSigner : SignerI.Attested {
+    val keyInfo: KeyInfo
+}
+
+sealed class UnlockedAndroidKeystoreSigner private constructor(
+    private val jcaSig: JCASignatureObject,
+    override val keyInfo: KeyInfo,
+    override val certificateChain: CertificateChain
+): SignerI.UnlockedHandle, AndroidKeystoreSigner {
+
+    class EC internal constructor(jcaSig: JCASignatureObject,
+                                  keyInfo: KeyInfo,
+                                  certificateChain: CertificateChain,
+                                  override val publicKey: CryptoPublicKey.EC
+    ) : UnlockedAndroidKeystoreSigner(jcaSig, keyInfo, certificateChain), SignerI.EC
+
+    class RSA internal constructor(jcaSig: JCASignatureObject,
+                                   keyInfo: KeyInfo,
+                                   certificateChain: CertificateChain,
+                                   override val publicKey: CryptoPublicKey.Rsa
+    ) : UnlockedAndroidKeystoreSigner(jcaSig, keyInfo, certificateChain), SignerI.RSA
+
+    final override fun sign(data: SignatureInput) = catching {
+        // TODO data format validation
+        data.data.forEach(jcaSig::update)
+        val jcaSignature = jcaSig.sign()
+        when (this) {
+            is EC -> CryptoSignature.EC.parseFromJca(jcaSignature)
+            is RSA -> CryptoSignature.RSAorHMAC.parseFromJca(jcaSignature)
+        }
+    }
+
+    final override fun close() {}
+
+}
+
+sealed class LockedAndroidKeystoreSigner private constructor(
+    private val context: FragmentContext,
+    private val jcaPrivateKey: PrivateKey,
+    override val keyInfo: KeyInfo,
+    private val config: AndroidSignerConfiguration,
+    override val certificateChain: CertificateChain
+) : SignerI.TemporarilyUnlockable<UnlockedAndroidKeystoreSigner>(), AndroidKeystoreSigner {
 
     private sealed interface AuthResult {
         @JvmInline value class Success(val result: AuthenticationResult): AuthResult
@@ -86,6 +224,10 @@ class AndroidKeyStoreProvider private constructor (
 
     private suspend fun attemptBiometry(config: AndroidSignerConfiguration.AuthnPrompt, forSpecificKey: CryptoObject?) {
         val channel = Channel<AuthResult>(capacity = Channel.RENDEZVOUS)
+        val executor = when (context) {
+            is FragmentContext.OfActivity -> ContextCompat.getMainExecutor(context.activity)
+            is FragmentContext.OfFragment -> ContextCompat.getMainExecutor(context.fragment.context)
+        }
         executor.asCoroutineDispatcher().let(::CoroutineScope).launch {
             val promptInfo = BiometricPrompt.PromptInfo.Builder().apply {
                 setTitle(config.message)
@@ -124,139 +266,52 @@ class AndroidKeyStoreProvider private constructor (
         }
     }
 
-    sealed class UnlockedSigner private constructor(
-        private val jcaSig: JCASignatureObject,
-        override val certificateChain: CertificateChain
-    ): SignerI.UnlockedHandle, SignerI.Attested {
+    protected abstract fun toUnlocked(jcaSig: JCASignatureObject): UnlockedAndroidKeystoreSigner
 
-        class EC internal constructor(jcaSig: JCASignatureObject,
-                                      certificateChain: CertificateChain,
-                                      override val publicKey: CryptoPublicKey.EC
-        ) : UnlockedSigner(jcaSig, certificateChain), SignerI.EC
-
-        class RSA internal constructor(jcaSig: JCASignatureObject,
-                                       certificateChain: CertificateChain,
-                                       override val publicKey: CryptoPublicKey.Rsa
-        ) : UnlockedSigner(jcaSig, certificateChain), SignerI.RSA
-
-        override fun sign(data: SignatureInput) = catching {
-            // TODO data format validation
-            data.data.forEach(jcaSig::update)
-            val jcaSignature = jcaSig.sign()
-            when (this) {
-                is EC -> CryptoSignature.EC.parseFromJca(jcaSignature)
-                is RSA -> CryptoSignature.RSAorHMAC.parseFromJca(jcaSignature)
-            }
-        }
-
-        override fun close() {}
-
-    }
-
-    abstract inner class LockedSigner internal constructor(
-        private val jcaPrivateKey: PrivateKey,
-        private val config: AndroidSignerConfiguration,
-        override val certificateChain: CertificateChain
-    ) : SignerI.TemporarilyUnlockable<UnlockedSigner>(), SignerI.Attested {
-
-        val keyInfo = KeyFactory.getInstance(jcaPrivateKey.algorithm, "AndroidKeyStore")
-            .getKeySpec(jcaPrivateKey, KeyInfo::class.java)
-
-        val needsAuthentication inline get() =
-            keyInfo.isUserAuthenticationRequired
-        val needsAuthenticationForEveryUse inline get() =
-            keyInfo.isUserAuthenticationRequired &&
-                    (keyInfo.userAuthenticationValidityDurationSeconds <= 0)
-        val needsAuthenticationWithTimeout inline get() =
-            keyInfo.isUserAuthenticationRequired &&
-                    (keyInfo.userAuthenticationValidityDurationSeconds > 0)
-
-        protected abstract fun toUnlocked(jcaSig: JCASignatureObject): UnlockedSigner
-
-        override suspend fun unlock(): KmmResult<UnlockedSigner> = catching {
-            JCASignatureObject.getInstance(jcaPrivateKey.algorithm, "AndroidKeyStore").also {
-                if (needsAuthenticationForEveryUse) {
+    final override suspend fun unlock(): KmmResult<UnlockedAndroidKeystoreSigner> = catching {
+        JCASignatureObject.getInstance(jcaPrivateKey.algorithm, "AndroidKeyStore").also {
+            if (needsAuthenticationForEveryUse) {
+                it.initSign(jcaPrivateKey)
+                attemptBiometry(config.unlockPrompt.v, CryptoObject(it))
+            } else {
+                try {
                     it.initSign(jcaPrivateKey)
-                    attemptBiometry(config.unlockPrompt.v, CryptoObject(it))
-                } else {
-                    try {
-                        it.initSign(jcaPrivateKey)
-                    } catch (_: UserNotAuthenticatedException) {
-                        attemptBiometry(config.unlockPrompt.v, null)
-                        it.initSign(jcaPrivateKey)
-                    }
+                } catch (_: UserNotAuthenticatedException) {
+                    attemptBiometry(config.unlockPrompt.v, null)
+                    it.initSign(jcaPrivateKey)
                 }
-            }.let(this::toUnlocked)
-        }
+            }
+        }.let(this::toUnlocked)
     }
 
-    inner class LockedECSigner internal constructor(jcaPrivateKey: PrivateKey,
-                                                    config: AndroidSignerConfiguration,
-                                                    certificateChain: CertificateChain)
-        : LockedSigner(jcaPrivateKey, config, certificateChain), SignerI.EC {
+    class EC internal constructor(context: FragmentContext,
+                                  jcaPrivateKey: PrivateKey,
+                                  keyInfo: KeyInfo,
+                                  config: AndroidSignerConfiguration,
+                                  certificateChain: CertificateChain)
+        : LockedAndroidKeystoreSigner(context, jcaPrivateKey, keyInfo, config, certificateChain), SignerI.EC {
         override val publicKey = certificateChain.leaf.publicKey as CryptoPublicKey.EC
         override fun toUnlocked(jcaSig: Signature) =
-            UnlockedSigner.EC(jcaSig, certificateChain, publicKey)
+            UnlockedAndroidKeystoreSigner.EC(jcaSig, keyInfo, certificateChain, publicKey)
     }
 
-    inner class LockedRSASigner internal constructor(jcaPrivateKey: PrivateKey,
-                                         config: AndroidSignerConfiguration,
-                                         certificateChain: CertificateChain)
-        : LockedSigner(jcaPrivateKey, config, certificateChain), SignerI.RSA {
+    class RSA internal constructor(context: FragmentContext,
+                                   jcaPrivateKey: PrivateKey,
+                                   keyInfo: KeyInfo,
+                                   config: AndroidSignerConfiguration,
+                                   certificateChain: CertificateChain)
+        : LockedAndroidKeystoreSigner(context, jcaPrivateKey, keyInfo, config, certificateChain), SignerI.RSA {
         override val publicKey = certificateChain.leaf.publicKey as CryptoPublicKey.Rsa
         override fun toUnlocked(jcaSig: Signature) =
-            UnlockedSigner.RSA(jcaSig, certificateChain, publicKey)
-    }
-
-    override fun createSigningKey(
-        alias: String,
-        configure: DSLConfigureFn<AndroidSigningKeyConfiguration>
-    ): KmmResult<LockedSigner> = catching {
-        val config = DSL.resolve(::AndroidSigningKeyConfiguration, configure)
-        val spec = KeyGenParameterSpec.Builder(
-            alias,
-            KeyProperties.PURPOSE_SIGN
-        ).apply {
-            when(val algSpec = config._algSpecific.v) {
-                is SigningKeyConfiguration.RSAConfiguration -> {
-                    RSAKeyGenParameterSpec(algSpec.bits, algSpec.publicExponent.toJavaBigInteger())
-                    setDigests(algSpec.digest.jcaName)
-                }
-                is SigningKeyConfiguration.ECConfiguration -> {
-                    ECGenParameterSpec(algSpec.curve.jcaName)
-                    setDigests(algSpec.digest.jcaName)
-                }
-            }
-            setCertificateNotBefore(Date.from(Instant.now()))
-            setCertificateSubject(X500Principal("CN=$alias")) // TODO
-            config.attestation.v?.let {
-                setAttestationChallenge(it.challenge)
-            }
-        }.build()
-        KeyPairGenerator.getInstance(when(config._algSpecific.v) {
-            is SigningKeyConfiguration.RSAConfiguration -> "RSA"
-            is SigningKeyConfiguration.ECConfiguration -> "EC"
-        }, "AndroidKeyStore").apply {
-            initialize(spec)
-        }.generateKeyPair()
-        return getSignerForKey(alias, config.signer.v)
-    }
-
-    override fun getSignerForKey(
-        alias: String,
-        configure: DSLConfigureFn<AndroidSignerConfiguration>
-    ): KmmResult<LockedSigner> = catching {
-        val jcaPrivateKey = ks.getKey(alias, null) as PrivateKey
-        val config = DSL.resolve(::AndroidSignerConfiguration, configure)
-        val certificateChain =
-            ks.getCertificateChain(alias).map { X509Certificate.decodeFromDer(it.encoded) }
-        when (certificateChain.leaf.publicKey) {
-            is CryptoPublicKey.EC -> LockedECSigner(jcaPrivateKey, config, certificateChain)
-            is CryptoPublicKey.Rsa -> LockedRSASigner(jcaPrivateKey, config, certificateChain)
-        }
-    }
-
-    override fun deleteSigningKey(alias: String) {
-        ks.deleteEntry(alias)
+            UnlockedAndroidKeystoreSigner.RSA(jcaSig, keyInfo, certificateChain, publicKey)
     }
 }
+
+val AndroidKeystoreSigner.needsAuthentication inline get() =
+    keyInfo.isUserAuthenticationRequired
+val AndroidKeystoreSigner.needsAuthenticationForEveryUse inline get() =
+    keyInfo.isUserAuthenticationRequired &&
+            (keyInfo.userAuthenticationValidityDurationSeconds <= 0)
+val AndroidKeystoreSigner.needsAuthenticationWithTimeout inline get() =
+    keyInfo.isUserAuthenticationRequired &&
+            (keyInfo.userAuthenticationValidityDurationSeconds > 0)

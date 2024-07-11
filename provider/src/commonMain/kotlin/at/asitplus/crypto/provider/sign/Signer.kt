@@ -110,5 +110,5 @@ suspend fun <T> Signer.withUnlock(fn: Signer.Unlocked.()->T) = catching {
 }
 
 suspend inline fun Signer.sign(data: ByteArray) = sign(SignatureInput(data))
-inline fun Signer.Unlocked.sign(data: ByteArray) = sign(SignatureInput(data))
-suspend inline fun Signer.Unlockable.sign(data: ByteArray) = sign(SignatureInput(data))
+inline fun <T: Signer.Unlocked> T.sign(data: ByteArray) = sign(SignatureInput(data))
+suspend inline fun <T: Signer.Unlockable> T.sign(data: ByteArray) = sign(SignatureInput(data))
