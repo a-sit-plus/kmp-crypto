@@ -167,16 +167,19 @@ private fun SignatureAlgorithm.verifierForImpl
              allowKotlin: Boolean): KmmResult<Verifier> =
     when (this) {
         is SignatureAlgorithm.ECDSA -> {
-            require(publicKey is CryptoPublicKey.EC)
-                { "Non-EC public key passed to ECDSA algorithm"}
-            verifierForImpl(publicKey, configure, allowKotlin)
+            if(publicKey !is CryptoPublicKey.EC)
+                KmmResult.failure(IllegalArgumentException("Non-EC public key passed to ECDSA algorithm"))
+            else
+                verifierForImpl(publicKey, configure, allowKotlin)
         }
         is SignatureAlgorithm.RSA -> {
-            require(publicKey is CryptoPublicKey.Rsa)
-                { "Non-RSA public key passed to RSA algorithm"}
-            verifierForImpl(publicKey, configure, allowKotlin)
+            if (publicKey !is CryptoPublicKey.Rsa)
+                KmmResult.failure(IllegalArgumentException("Non-RSA public key passed to RSA algorithm"))
+            else
+                verifierForImpl(publicKey, configure, allowKotlin)
         }
-        is SignatureAlgorithm.HMAC -> throw UnsupportedCryptoException("HMAC is unsupported")
+        is SignatureAlgorithm.HMAC ->
+            KmmResult.failure(IllegalArgumentException("HMAC is unsupported"))
     }
 
 /**

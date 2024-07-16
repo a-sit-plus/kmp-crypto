@@ -3,11 +3,13 @@
 
 ![img.png](img.png)
 
-This app showcases the KMP Crypto provider (currently supporting onl EC crypto) on the desktop, on Android and on iOS.
-It is possible to generate key pairs and sign data. Verification is not implemented in the demo app.
+This app showcases the KMP Crypto provider on the desktop, on Android and on iOS.
+It is possible to generate key pairs, sign data, and verify the signature.
 
-Attested keys can only be generated, when using P-256 keys, due to an iOS limitation. For reasons of consistency, Android attested keys are also fixed to P-256.
+On iOS, only P-256 keys can be attested.
 The JVM does not support attestation.
+
+`*** TODO CLEANUP BELOW THIS LINE ***`
 
 Android and iOS support mandatory authentication for key usage. While somewhat similar functionality can be achieved on both platforms, iOS comes with some peculiarities.
 Most prominently: It is possible to specify a max validity duration of an authentication context. This property, however, has jwf semantics, since a once authenticated LAContext will remain in this state for eternety.

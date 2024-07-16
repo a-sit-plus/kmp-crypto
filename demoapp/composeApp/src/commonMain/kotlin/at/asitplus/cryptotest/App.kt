@@ -39,16 +39,19 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import at.asitplus.KmmResult
-import at.asitplus.crypto.datatypes.CryptoAlgorithm
-import at.asitplus.crypto.datatypes.CryptoPublicKey
 import at.asitplus.crypto.datatypes.CryptoSignature
-import at.asitplus.crypto.datatypes.asn1.Asn1Element
-import at.asitplus.crypto.datatypes.asn1.parse
+import at.asitplus.crypto.datatypes.ECCurve
+import at.asitplus.crypto.datatypes.SignatureAlgorithm
+import at.asitplus.crypto.datatypes.SpecializedSignatureAlgorithm
+import at.asitplus.crypto.datatypes.X509SignatureAlgorithm
+import at.asitplus.crypto.datatypes.nativeDigest
 import at.asitplus.crypto.datatypes.pki.X509Certificate
-import at.asitplus.crypto.provider.CryptoPrivateKey
-import at.asitplus.crypto.provider.CryptoKeyPair
-import at.asitplus.crypto.provider.TbaKey
-import at.asitplus.crypto.provider.public
+import at.asitplus.crypto.provider.os.SignerConfiguration
+import at.asitplus.crypto.provider.os.TPMSigningProvider
+import at.asitplus.crypto.provider.sign.Signer
+import at.asitplus.crypto.provider.sign.makeVerifier
+import at.asitplus.crypto.provider.sign.sign
+import at.asitplus.crypto.provider.sign.verify
 import at.asitplus.cryptotest.theme.AppTheme
 import at.asitplus.cryptotest.theme.LocalThemeIsDark
 import io.github.aakira.napier.DebugAntilog
@@ -59,7 +62,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlin.random.Random
-import kotlin.time.Duration
+import kotlin.reflect.KProperty
 import kotlin.time.Duration.Companion.seconds
 
 val SAMPLE_CERT_CHAIN = listOf(
@@ -114,9 +117,14 @@ val SAMPLE_CERT_CHAIN = listOf(
 
 
 const val ALIAS = "Bartschlüssel"
+val SIGNER_CONFIG: (SignerConfiguration.()->Unit) = {
+}
 
 val context = newSingleThreadContext("crypto").also { Napier.base(DebugAntilog()) }
 
+private class getter<T>(private val fn: ()->T) {
+    operator fun getValue(nothing: Nothing?, property: KProperty<*>): T = fn()
+}
 
 @OptIn(ExperimentalStdlibApi::class, ExperimentalCoroutinesApi::class)
 @Composable
@@ -125,14 +133,44 @@ internal fun App() {
     AppTheme {
         var attestation by remember { mutableStateOf(false) }
         var biometricAuth by remember { mutableStateOf(" Disabled") }
-        var selectedIndex by remember { mutableStateOf(0) }
-        val algos = listOf(CryptoAlgorithm.ES256, CryptoAlgorithm.ES384, CryptoAlgorithm.ES512)
+        val algos = listOf(
+            X509SignatureAlgorithm.ES256,
+            X509SignatureAlgorithm.ES384,
+            X509SignatureAlgorithm.ES512,
+            X509SignatureAlgorithm.RS1,
+            X509SignatureAlgorithm.RS256,
+            X509SignatureAlgorithm.RS384,
+            X509SignatureAlgorithm.RS512)
+        var keyAlgorithm by remember { mutableStateOf<SpecializedSignatureAlgorithm>(X509SignatureAlgorithm.ES256) }
         var inputData by remember { mutableStateOf("Foo") }
-        var currentKey by remember { mutableStateOf<KmmResult<TbaKey>?>(null) }
-        var currentKeyStr by remember { mutableStateOf("<none>") }
-        var signingPossible by remember { mutableStateOf(currentKey?.isSuccess == true) }
-        var signatureData by remember { mutableStateOf("") }
-        var certData by remember { mutableStateOf("") }
+        var currentSigner by remember { mutableStateOf<KmmResult<Signer>?>(null) }
+        val currentKey by getter { currentSigner?.mapCatching(Signer::publicKey) }
+        val currentKeyStr by getter {
+            currentKey?.fold(onSuccess = {
+                it.toString()
+            },
+            onFailure = {
+                Napier.e("Key failed", it)
+                "${it::class.simpleName ?: "<unnamed>"}: ${it.message}"
+            }) ?: "<none>"
+        }
+        val signingPossible by getter { currentKey?.isSuccess == true }
+        var signatureData by remember { mutableStateOf<KmmResult<CryptoSignature>?>(null) }
+        val signatureDataStr by getter {
+            signatureData?.fold(onSuccess = Any::toString) {
+                Napier.e("Signature failed", it)
+                "${it::class.simpleName ?: "<unnamed>"}: ${it.message}"
+            } ?: ""
+        }
+        val verifyPossible by getter { signatureData?.isSuccess == true }
+        var verifyState by remember { mutableStateOf<KmmResult<Unit>?>(null) }
+        val verifySucceededStr by getter {
+            verifyState?.fold(onSuccess = {
+                "Verify OK!"
+            }, onFailure = {
+                "${it::class.simpleName ?: "<unnamed>"}: ${it.message}"
+            }) ?: "  "
+        }
         var canGenerate by remember { mutableStateOf(true) }
 
         var genText by remember { mutableStateOf("Generate Key") }
@@ -167,7 +205,6 @@ internal fun App() {
                 }
             }
 
-            var displayedKeySize by remember { mutableStateOf(" ▼ " + algos[selectedIndex]) }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -181,12 +218,6 @@ internal fun App() {
                         modifier = Modifier.wrapContentSize(Alignment.TopStart).padding(0.dp),
                         onCheckedChange = {
                             attestation = it
-                            if (attestation) {
-                                selectedIndex = 0
-                                displayedKeySize = " ▽ " + algos[selectedIndex]
-                            } else {
-                                displayedKeySize = " ▼ " + algos[selectedIndex]
-                            }
                         })
                 }
                 Row {
@@ -248,6 +279,7 @@ internal fun App() {
             ) {
                 Text("Key Type", modifier = Modifier.padding(horizontal = 16.dp))
                 var expanded by remember { mutableStateOf(false) }
+                val displayedKeySize by getter { (if (expanded) " ▲ " else " ▼ ") + keyAlgorithm }
                 Box(
                     modifier = Modifier.fillMaxWidth().wrapContentSize(Alignment.TopStart)
                         .padding(horizontal = 16.dp).background(MaterialTheme.colorScheme.primary)
@@ -257,10 +289,7 @@ internal fun App() {
                         displayedKeySize,
                         modifier = Modifier.fillMaxWidth().align(Alignment.TopStart)
                             .clickable(onClick = {
-                                if (!attestation) {
-                                    expanded = true
-                                    displayedKeySize = " ▲ " + algos[selectedIndex]
-                                }
+                                expanded = true
                             }),
                         color = MaterialTheme.colorScheme.onPrimary
 
@@ -269,16 +298,14 @@ internal fun App() {
                         expanded = expanded,
                         onDismissRequest = {
                             expanded = false
-                            displayedKeySize = " ▼ " + algos[selectedIndex]
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         algos.forEachIndexed { index, s ->
                             DropdownMenuItem(text = { Text(text = s.toString()) },
                                 onClick = {
-                                    selectedIndex = index
+                                    keyAlgorithm = algos[index]
                                     expanded = false
-                                    displayedKeySize = " ▼ " + algos[selectedIndex]
                                 })
                         }
                     }
@@ -294,30 +321,49 @@ internal fun App() {
                         CoroutineScope(context).launch {
                             canGenerate = false
                             genText = "Generating. Please wait…"
-                            currentKey = generateKey(
-                                algos[selectedIndex],
-                                if (attestation) Random.nextBytes(16) else null,
-                                runCatching {
-                                    biometricAuth.substringBefore("s").trim().toInt()
-                                }.getOrNull()?.seconds
-                            ).also { it.exceptionOrNull()?.printStackTrace() }
+                            currentSigner = getSystemKeyStore().createSigningKey(ALIAS) {
+                                signer(SIGNER_CONFIG)
+
+                                when (val alg = keyAlgorithm.algorithm) {
+                                    is SignatureAlgorithm.ECDSA -> {
+                                        this@createSigningKey.ec {
+                                            curve = alg.requiredCurve ?:
+                                                ECCurve.entries.find { it.nativeDigest == alg.digest }!!
+                                            digests = setOf(alg.digest)
+                                        }
+                                    }
+                                    is SignatureAlgorithm.RSA -> {
+                                        this@createSigningKey.rsa {
+                                            digests = setOf(alg.digest)
+                                            bits = 1024
+                                        }
+                                    }
+                                    else -> TODO("unreachable")
+                                }
+
+                                tpm {
+                                    if (attestation) {
+                                        attestation {
+                                            challenge = Random.nextBytes(16)
+                                        }
+                                    }
+                                    runCatching {
+                                        biometricAuth.substringBefore("s").trim().toInt()
+                                    }.getOrNull()?.let {
+                                        protection {
+                                            timeout = it.seconds
+                                            factors {
+                                                biometry = true
+                                                deviceLock = false
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            verifyState = null
 
                             //just to check
-                            loadPubKey().let { Napier.w { "PubKey retrieved from native: $it" } }
-
-                            currentKeyStr = currentKey!!.map {
-                                it.first.toString() + ": " +
-                                        it.second.joinToString {
-                                            runCatching {
-                                                Asn1Element.parse(it).prettyPrint()
-                                            }.getOrDefault(
-                                                it.toHexString(
-                                                    HexFormat.UpperCase
-                                                )
-                                            )
-                                        }
-                            }.toString()
-                            signingPossible = currentKey?.isSuccess ?: false
+                            //loadPubKey().let { Napier.w { "PubKey retrieved from native: $it" } }
                             Napier.w { "Signing possible: ${currentKey?.isSuccess}" }
                             canGenerate = true
                             genText = "Generate Key"
@@ -334,21 +380,16 @@ internal fun App() {
                         CoroutineScope(context).launch {
                             canGenerate = false
                             genText = "Loading Key. Please wait…"
-                            loadPrivateKey().let {
+                            getSystemKeyStore().getSignerForKey(ALIAS, SIGNER_CONFIG).let {
                                 Napier.w { "Priv retrieved from native: $it" }
-                                currentKey = it.map {
-                                    TbaKey(it, listOf())
-
-                                }
-                                currentKeyStr = currentKey.toString()
-
+                                currentSigner = it
+                                verifyState = null
                             }
 
                             //just to check
-                            loadPubKey().let { Napier.w { "PubKey retrieved from native: $it" } }
+                            //loadPubKey().let { Napier.w { "PubKey retrieved from native: $it" } }
                             canGenerate = true
                             genText = "Generate New Key"
-                            signingPossible = currentKey?.isSuccess ?: false
                         }
                     },
                     modifier = Modifier.padding(end = 16.dp)
@@ -371,77 +412,79 @@ internal fun App() {
                 minLines = 1,
                 maxLines = 2,
                 textStyle = TextStyle.Default.copy(fontSize = 10.sp),
-                onValueChange = { inputData = it },
+                onValueChange = { inputData = it; verifyState = null },
                 label = { Text("Data to be signed") })
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Button(
-                    onClick = {
+            Button(
+                onClick = {
 
-                        Napier.w { "input: $inputData" }
-                        Napier.w { "signinKey: $currentKey" }
-                        CoroutineScope(context).launch {
-                            sign(
-                                inputData.encodeToByteArray(),
-                                when ((currentKey!!.getOrThrow().first.public as CryptoPublicKey.EC).curve.keyLengthBits) {
-                                    256u -> CryptoAlgorithm.ES256
-
-                                    384u -> CryptoAlgorithm.ES384
-
-                                    else -> CryptoAlgorithm.ES512
-                                },
-                                currentKey!!.getOrThrow().first.first
-                            ).map { signatureData = it.encodeToTlv().prettyPrint() }
+                    Napier.w { "input: $inputData" }
+                    Napier.w { "signinKey: $currentKey" }
+                    CoroutineScope(context).launch {
+                        val data = inputData.encodeToByteArray()
+                        getSystemKeyStore().getSignerForKey(ALIAS) {
+                            unlockPrompt {
+                                message = "We're signing a thing!"
+                                cancelText = "No! Stop!"
+                            }
                         }
+                            .transform { it.sign(data) }
+                            .also { signatureData = it; verifyState = null }
+                    }
 
-                    },
+                },
 
-                    enabled = signingPossible
-                ) {
-                    Text("Sign")
-                }
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                enabled = signingPossible
+            ) {
+                Text("Sign")
+            }
 
+            if (signatureData != null) {
+                OutlinedTextField(value = signatureDataStr,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    minLines = 1,
+                    textStyle = TextStyle.Default.copy(fontSize = 10.sp),
+                    readOnly = true, onValueChange = {}, label = { Text("Detached Signature") })
+            }
+
+            if (verifyPossible) {
                 Button(
                     onClick = {
                         Napier.w { "crt: $currentKey" }
                         CoroutineScope(context).launch {
-                            storeCertChain().let {
-                                Napier.w { "STORE: $it" }
-                            }
-
-                            val loaded = getCertChain().also {
-                                Napier.w { "LOADED: $it" }
-                                certData = it.toString()
-                            }
-                            Napier.w { "chains are equal: " + (loaded.getOrNull() == SAMPLE_CERT_CHAIN) }
+                            val signer = currentSigner!!.getOrThrow()
+                            val data = inputData.encodeToByteArray()
+                            val sig = signatureData!!.getOrThrow()
+                            signer.makeVerifier()
+                                .transform { it.verify(data, sig) }
+                                .also { verifyState = it }
                         }
                     },
+
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    enabled = verifyPossible
                 ) {
-                    Text("Store and Load Cert")
+                    Text("Verify")
                 }
             }
 
-            OutlinedTextField(value = signatureData,
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                minLines = 1,
-                textStyle = TextStyle.Default.copy(fontSize = 10.sp),
-                readOnly = true, onValueChange = {}, label = { Text("Detached Signature") })
-
-            OutlinedTextField(value = certData,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                minLines = 1,
-                textStyle = TextStyle.Default.copy(fontSize = 10.sp),
-                readOnly = true,
-                onValueChange = {},
-                label = { Text("Certificate Chain from KeyStore") })
+            if (verifyState != null) {
+                OutlinedTextField(value = verifySucceededStr,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    minLines = 1,
+                    textStyle = TextStyle.Default.copy(fontSize = 10.sp),
+                    readOnly = true,
+                    onValueChange = {},
+                    label = { Text("Verification Result") })
+            }
         }
     }
 }
 
-internal expect suspend fun generateKey(
+internal expect fun getSystemKeyStore(): TPMSigningProvider
+
+/*internal expect suspend fun generateKey(
     alg: CryptoAlgorithm,
     attestation: ByteArray?,
     withBiometricAuth: Duration?,
@@ -459,4 +502,4 @@ internal expect suspend fun loadPubKey(): KmmResult<CryptoPublicKey>
 internal expect suspend fun loadPrivateKey(): KmmResult<CryptoKeyPair>
 
 internal expect suspend fun storeCertChain(): KmmResult<Unit>
-internal expect suspend fun getCertChain(): KmmResult<List<X509Certificate>>
+internal expect suspend fun getCertChain(): KmmResult<List<X509Certificate>>*/

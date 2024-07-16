@@ -10,14 +10,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import at.asitplus.KmmResult
-import at.asitplus.crypto.datatypes.CryptoAlgorithm
 import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.datatypes.pki.X509Certificate
-import at.asitplus.crypto.provider.AndroidSpecificCryptoOps
-import at.asitplus.crypto.provider.BiometricPromptAdapter
-import at.asitplus.crypto.provider.CryptoPrivateKey
-import at.asitplus.crypto.provider.CryptoProvider
-import at.asitplus.crypto.provider.TbaKey
+import at.asitplus.crypto.provider.os.AndroidKeyStoreProvider
+import at.asitplus.crypto.provider.os.TPMSigningProvider
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -35,11 +31,7 @@ class AndroidApp : Application() {
     }
 }
 
-private var fragmentActivity: FragmentActivity? = null
-var executor: Executor? = null
-val ctx = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-
-private var biometricPrompt: AndroidSpecificCryptoOps.BiometricAuth? = null
+private lateinit var fragmentActivity: FragmentActivity
 
 class AppActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,12 +39,14 @@ class AppActivity : FragmentActivity() {
         setContent {
             App()
             fragmentActivity = LocalContext.current as FragmentActivity
-            executor = ContextCompat.getMainExecutor(fragmentActivity!!)
         }
     }
 }
 
-internal actual suspend fun generateKey(
+internal actual fun getSystemKeyStore(): TPMSigningProvider =
+    AndroidKeyStoreProvider(fragmentActivity)
+
+/*internal actual suspend fun generateKey(
     alg: CryptoAlgorithm,
     attestation: ByteArray?,
     withBiometricAuth: Duration?
@@ -119,4 +113,4 @@ internal actual suspend fun storeCertChain(): KmmResult<Unit> =
     CryptoProvider.storeCertificateChain(ALIAS + "CRT_CHAIN", SAMPLE_CERT_CHAIN)
 
 internal actual suspend fun getCertChain(): KmmResult<List<X509Certificate>> =
-    CryptoProvider.getCertificateChain(ALIAS + "CRT_CHAIN")
+    CryptoProvider.getCertificateChain(ALIAS + "CRT_CHAIN")*/

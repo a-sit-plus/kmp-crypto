@@ -1,19 +1,17 @@
 package at.asitplus.cryptotest
 
 import at.asitplus.KmmResult
-import at.asitplus.crypto.datatypes.CryptoAlgorithm
 import at.asitplus.crypto.datatypes.CryptoPublicKey
 import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.datatypes.pki.X509Certificate
-import at.asitplus.crypto.provider.CryptoPrivateKey
-import at.asitplus.crypto.provider.JvmSpecifics
-import at.asitplus.crypto.provider.CryptoProvider
-import at.asitplus.crypto.provider.TbaKey
+import at.asitplus.crypto.provider.os.TPMSigningProvider
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.KeyStore
 import kotlin.time.Duration
 
-val PROVIDER = BouncyCastleProvider()
+internal actual fun getSystemKeyStore(): TPMSigningProvider = TODO()
+
+/*val PROVIDER = BouncyCastleProvider()
 val JVM_OPTS =
     JvmSpecifics(
         PROVIDER,
@@ -43,4 +41,4 @@ internal actual suspend fun storeCertChain(): KmmResult<Unit> =
 internal actual suspend fun getCertChain(): KmmResult<List<X509Certificate>> =
     CryptoProvider.getCertificateChain(
         ALIAS + "CRT_CHAIN", JVM_OPTS
-    )
+    )*/

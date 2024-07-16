@@ -1,29 +1,21 @@
 package at.asitplus.cryptotest
 
 import at.asitplus.KmmResult
-import at.asitplus.crypto.provider.IosSpecificCryptoOps
-import at.asitplus.crypto.datatypes.CryptoAlgorithm
 import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.datatypes.pki.X509Certificate
-import at.asitplus.crypto.provider.CryptoPrivateKey
-import at.asitplus.crypto.provider.IosPrivateKey
-import at.asitplus.crypto.provider.CryptoKeyPair
-import at.asitplus.crypto.provider.CryptoProvider
-import at.asitplus.crypto.provider.TbaKey
+import at.asitplus.crypto.provider.os.TPMSigningProvider
 import io.github.aakira.napier.Napier
 import io.ktor.util.encodeBase64
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import platform.LocalAuthentication.LAContext
-import platform.Security.kSecAccessControlBiometryCurrentSet
-import platform.Security.kSecAccessControlTouchIDCurrentSet
 import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+internal actual fun getSystemKeyStore(): TPMSigningProvider = TODO()
 
-@OptIn(ExperimentalForeignApi::class)
+/*@OptIn(ExperimentalForeignApi::class)
 internal actual suspend fun generateKey(
     alg: CryptoAlgorithm,
     attestation: ByteArray?,
@@ -87,4 +79,4 @@ internal actual suspend fun storeCertChain(): KmmResult<Unit> =
 internal actual suspend fun getCertChain(): KmmResult<List<X509Certificate>> =
     CryptoProvider.getCertificateChain(
         ALIAS + "CRT_CHAIN"
-    )
+    )*/
