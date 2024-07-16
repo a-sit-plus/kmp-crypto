@@ -3,7 +3,8 @@
 package at.asitplus.crypto.provider
 
 import kotlinx.cinterop.*
-import platform.Foundation.CFBridgingRelease
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.create
@@ -33,7 +34,7 @@ internal class swiftcall private constructor(val error: CPointer<ObjCObjectVar<N
      * `SwiftException` if the swift call throws.
      */
     companion object {
-        @OptIn(BetaInteropApi::class)
+        @OptIn(BetaInteropApi::class, ExperimentalForeignApi::class)
         operator fun <T> invoke(call: swiftcall.()->T?): T {
             memScoped {
                 val errorH = alloc<ObjCObjectVar<NSError?>>()
@@ -42,6 +43,35 @@ internal class swiftcall private constructor(val error: CPointer<ObjCObjectVar<N
                 when {
                     (result != null) && (error == null) -> return result
                     (result == null) && (error != null) -> throw SwiftException(error.localizedDescription)
+                    else -> throw IllegalStateException("Invalid state returned by Swift")
+                }
+            }
+        }
+    }
+}
+
+internal class swiftasync<T> private constructor(val callback: (T?, NSError?)->Unit) {
+    /** Helper for calling swift-objc-mapped async functions, and bridging exceptions across.
+     *
+     * Usage:
+     * ```
+     * swiftasync { SwiftObj.func(arg1, arg2, .., argN, callback) }
+     * ```
+     * `error` is provided by the implicit receiver object, and will be mapped to a
+     * `SwiftException` if the swift call throws.
+     */
+    companion object {
+        suspend operator fun <T> invoke(call: swiftasync<T>.()->Unit): T {
+            var result: T? = null
+            var error: NSError? = null
+            val mut = Mutex(true)
+            swiftasync<T> { res, err -> result = res; error = err; mut.unlock() }.call()
+            mut.withLock {
+                val res = result
+                val err = error
+                when {
+                    (res != null) && (err == null) -> return res
+                    (res == null) && (err != null) -> throw SwiftException(err.localizedDescription)
                     else -> throw IllegalStateException("Invalid state returned by Swift")
                 }
             }
