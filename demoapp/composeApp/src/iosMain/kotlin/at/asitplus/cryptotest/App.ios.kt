@@ -3,6 +3,7 @@ package at.asitplus.cryptotest
 import at.asitplus.KmmResult
 import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.datatypes.pki.X509Certificate
+import at.asitplus.crypto.provider.os.IOSKeychainProvider
 import at.asitplus.crypto.provider.os.TPMSigningProvider
 import io.github.aakira.napier.Napier
 import io.ktor.util.encodeBase64
@@ -13,7 +14,7 @@ import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-internal actual fun getSystemKeyStore(): TPMSigningProvider = TODO()
+internal actual fun getSystemKeyStore(): TPMSigningProvider = IOSKeychainProvider
 
 /*@OptIn(ExperimentalForeignApi::class)
 internal actual suspend fun generateKey(

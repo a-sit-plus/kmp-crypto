@@ -22,6 +22,9 @@ internal fun ByteArray.toNSData(): NSData = memScoped {
     NSData.create(bytes = allocArrayOf(this@toNSData), length = this@toNSData.size.toULong())
 }
 
+private fun NSError.toNiceString() =
+    "[Code $code] $localizedDescription\nBecause: $localizedFailureReason\nTry: $localizedRecoverySuggestion\n${if (localizedRecoveryOptions?.isEmpty() != true) "" else "Try also:\n - ${localizedRecoveryOptions!!.joinToString("\n - ")}\n"}"
+
 class SwiftException(message: String): Throwable(message)
 internal class swiftcall private constructor(val error: CPointer<ObjCObjectVar<NSError?>>) {
     /** Helper for calling swift-objc-mapped functions, and bridging exceptions across.
@@ -42,7 +45,7 @@ internal class swiftcall private constructor(val error: CPointer<ObjCObjectVar<N
                 val error = errorH.value
                 when {
                     (result != null) && (error == null) -> return result
-                    (result == null) && (error != null) -> throw SwiftException(error.localizedDescription)
+                    (result == null) && (error != null) -> throw SwiftException(error.toNiceString())
                     else -> throw IllegalStateException("Invalid state returned by Swift")
                 }
             }
@@ -71,7 +74,7 @@ internal class swiftasync<T> private constructor(val callback: (T?, NSError?)->U
                 val err = error
                 when {
                     (res != null) && (err == null) -> return res
-                    (res == null) && (err != null) -> throw SwiftException(err.localizedDescription)
+                    (res == null) && (err != null) -> throw SwiftException(err.toNiceString())
                     else -> throw IllegalStateException("Invalid state returned by Swift")
                 }
             }

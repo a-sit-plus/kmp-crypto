@@ -6,7 +6,89 @@
 import CryptoKit
 import Foundation
 
+@objc public class SignerProxy: NSObject {
+    let publicKey: SecKey
+    let privateKey: SecKey
+    init(_ pubKey: SecKey, _ privKey: SecKey) {
+        publicKey = pubKey
+        privateKey = privKey
+    }
+
+    @objc public func getPublicKey() throws -> Data
+    {
+        var error: Unmanaged<CFError>?
+        guard let result = SecKeyCopyExternalRepresentation(publicKey, &error)
+            else { throw error!.takeRetainedValue() as Error }
+        return result as Data
+    }
+
+    @objc public func sign(_ digest: String, _ data: Data) throws -> Data
+    {
+        let algorithm: SecKeyAlgorithm = switch digest {
+            case "SHA256": .ecdsaSignatureMessageX962SHA256
+            case "SHA384": .ecdsaSignatureMessageX962SHA384
+            case "SHA512": .ecdsaSignatureMessageX962SHA512
+            default: throw RuntimeError("Unsupported digest \(digest)")
+        }
+        guard SecKeyIsAlgorithmSupported(privateKey, .sign, algorithm)
+            else { throw RuntimeError("ECDSA with \(digest) is unsupported by this key") }
+
+        var error: Unmanaged<CFError>?
+        guard let signature = SecKeyCreateSignature(privateKey, algorithm, data as CFData, &error) as Data?
+            else { throw error!.takeRetainedValue() as Error }
+        return signature
+    }
+}
+
 @objc public class Krypto: NSObject {
+
+    // =========== SIGNING
+
+    @objc public static func createAttestedP256Key(_ alias: String) throws -> SignerProxy
+    {
+        guard let bundleId = Bundle.main.bundleIdentifier
+            else { throw RuntimeError("Failed to retrieve main bundle identifier") }
+        let tag = "kmp-crypto-\(bundleId)"
+    fputs("zero\n", stderr)
+        //var error: Unmanaged<CFError>?
+        /*guard let access = SecAccessControlCreateWithFlags(
+            kCFAllocatorDefault,
+            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            .privateKeyUsage,
+            &error)
+            else { throw error!.takeRetainedValue() as Error }*/
+
+        let privateKeyParams = [
+            kSecAttrLabel: "privkey-\(alias)",
+            kSecAttrIsPermanent: true,
+            kSecAttrApplicationTag: tag
+        ] as CFDictionary
+        let publicKeyParams = [
+            kSecAttrLabel: "pubkey-\(alias)",
+            kSecAttrIsPermanent: false,
+            kSecAttrApplicationTag: tag
+        ] as CFDictionary
+
+        let parameters = [
+            kSecAttrKeyType: kSecAttrKeyTypeEC,
+            kSecAttrKeySizeInBits: 256,
+            kSecAttrTokenID: kSecAttrTokenIDSecureEnclave,
+            kSecPublicKeyAttrs: publicKeyParams,
+            kSecPrivateKeyAttrs: privateKeyParams,
+        ] as CFDictionary
+
+    fputs("one\n", stderr)
+        var pubKey, privKey: SecKey?
+        let status = SecKeyGeneratePair(parameters, &pubKey, &privKey)
+        if (status != errSecSuccess) {
+            let e = SecCopyErrorMessageString(status, nil) as String? ?? "Unspecified security error"
+            throw RuntimeError("Failed to generate key: \(e)")
+        }
+    fputs("three\n", stderr)
+        return SignerProxy(pubKey!, privKey!)
+    }
+
+    // =========== VERIFICATION
 
     fileprivate static func verifyECDSA_P256(_ pubkeyDER: Data, _ sigDER: Data, _ data: any Digest) throws -> Bool {
         let pubKey = try P256.Signing.PublicKey(derRepresentation: pubkeyDER)
@@ -65,7 +147,7 @@ import Foundation
         }
     }
 
-    @objc public class func verifyRSA(_ padding: String, _ digest: String, _ pubkeyPKCS1: Data,
+    @objc public static func verifyRSA(_ padding: String, _ digest: String, _ pubkeyPKCS1: Data,
         _ sigDER: Data, _ data: Data) throws -> String
     {
         let algorithm = try getRSAAlgorithm(padding, digest)
