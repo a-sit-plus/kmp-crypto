@@ -50,6 +50,10 @@ open class PlatformSigningKeyConfiguration<PlatformSignerConfiguration: SignerCo
         var biometry = true
         /** Whether a device unlock code, PIN, etc. can authorize this key */
         var deviceLock = true
+
+        override fun validate() {
+            require(biometry || deviceLock) { "At least one authentication factor must be permissible" }
+        }
     }
 
     open class ProtectionConfiguration internal constructor(): DSL.Data() {

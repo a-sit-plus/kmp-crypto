@@ -5,10 +5,12 @@ package at.asitplus.crypto.provider
 import kotlinx.cinterop.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
+import platform.CoreFoundation.CFDictionaryGetValue
 import platform.CoreFoundation.CFDictionaryRef
+import platform.CoreFoundation.CFDictionarySetValue
 import platform.CoreFoundation.CFErrorRefVar
+import platform.CoreFoundation.CFMutableDictionaryRef
 import platform.CoreFoundation.CFTypeRef
 import platform.CoreFoundation.kCFBooleanFalse
 import platform.CoreFoundation.kCFBooleanTrue
@@ -131,16 +133,35 @@ internal class swiftasync<T> private constructor(val callback: (T?, NSError?)->U
 }
 
 internal inline fun <reified T> Any?.giveToCF() = when(this) {
+    null -> this
     is Boolean -> if (this) kCFBooleanTrue else kCFBooleanFalse
-    is CValuesRef<*>? -> this
+    is CValuesRef<*> -> this
     else -> CFBridgingRetain(this)
 } as T
 internal inline fun <reified T> CFTypeRef?.takeFromCF() = CFBridgingRelease(this) as T
 internal fun MemScope.cfDictionaryOf(vararg pairs: Pair<*,*>): CFDictionaryRef {
     val dict = CFDictionaryCreateMutable(null, pairs.size.toLong(), null, null)!!
     defer { CFBridgingRelease(dict) } // free it after the memscope finishes
-    for (pair in pairs) {
-        CFDictionaryAddValue(dict, pair.first.giveToCF(), pair.second.giveToCF())
-    }
+    pairs.forEach { (k,v) -> dict[k] = v }
     return dict
 }
+
+internal class CFDictionaryInitScope(private val dict: CFMutableDictionaryRef) {
+    internal fun map(pair: Pair<*,*>) {
+        dict[pair.first] = pair.second
+    }
+    internal infix fun Any?.mapsTo(other: Any?) {
+        dict[this] = other
+    }
+}
+internal fun MemScope.createCFDictionary(pairs: CFDictionaryInitScope.()->Unit): CFDictionaryRef {
+    val dict = CFDictionaryCreateMutable(null, 0, null, null)!!
+    defer { CFBridgingRelease(dict) }
+    CFDictionaryInitScope(dict).pairs()
+    return dict
+}
+internal inline operator fun <reified T> CFDictionaryRef.get(key: Any?): T =
+    CFDictionaryGetValue(this, key.giveToCF()).takeFromCF<T>()
+
+internal inline operator fun CFMutableDictionaryRef.set(key: Any?, value: Any?) =
+    CFDictionarySetValue(this, key.giveToCF(), value.giveToCF())

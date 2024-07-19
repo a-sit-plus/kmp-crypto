@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import at.asitplus.KmmResult
 import at.asitplus.crypto.datatypes.CryptoSignature
 import at.asitplus.crypto.datatypes.ECCurve
+import at.asitplus.crypto.datatypes.RSAPadding
 import at.asitplus.crypto.datatypes.SignatureAlgorithm
 import at.asitplus.crypto.datatypes.SpecializedSignatureAlgorithm
 import at.asitplus.crypto.datatypes.X509SignatureAlgorithm
@@ -121,6 +122,9 @@ val SIGNER_CONFIG: (SignerConfiguration.()->Unit) = {
     unlockPrompt {
         message = "We're signing a thing!"
         cancelText = "No! Stop!"
+    }
+    rsa {
+        padding = RSAPadding.PKCS1
     }
 }
 
@@ -346,20 +350,25 @@ internal fun App() {
                                     else -> TODO("unreachable")
                                 }
 
-                                tpm {
-                                    if (attestation) {
-                                        attestation {
-                                            challenge = Random.nextBytes(16)
+                                val timeout = runCatching {
+                                    biometricAuth.substringBefore("s").trim().toInt()
+                                }.getOrNull()
+
+                                if (attestation || timeout != null) {
+                                    tpm {
+                                        if (attestation) {
+                                            attestation {
+                                                challenge = Random.nextBytes(16)
+                                            }
                                         }
-                                    }
-                                    runCatching {
-                                        biometricAuth.substringBefore("s").trim().toInt()
-                                    }.getOrNull()?.let {
-                                        protection {
-                                            timeout = it.seconds
-                                            factors {
-                                                biometry = true
-                                                deviceLock = false
+
+                                        if (timeout != null) {
+                                            protection {
+                                                this.timeout = timeout.seconds
+                                                factors {
+                                                    biometry = true
+                                                    deviceLock = false
+                                                }
                                             }
                                         }
                                     }
@@ -415,6 +424,7 @@ internal fun App() {
                             }
                             currentSigner = null
                             signatureData = null
+                            verifyState = null
                             canGenerate = true
                             genTextOverride = null
                         }
