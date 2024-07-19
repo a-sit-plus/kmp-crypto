@@ -118,6 +118,10 @@ val SAMPLE_CERT_CHAIN = listOf(
 
 const val ALIAS = "Bartschlüssel"
 val SIGNER_CONFIG: (SignerConfiguration.()->Unit) = {
+    unlockPrompt {
+        message = "We're signing a thing!"
+        cancelText = "No! Stop!"
+    }
 }
 
 val context = newSingleThreadContext("crypto").also { Napier.base(DebugAntilog()) }
@@ -173,7 +177,8 @@ internal fun App() {
         }
         var canGenerate by remember { mutableStateOf(true) }
 
-        var genText by remember { mutableStateOf("Generate Key") }
+        var genTextOverride by remember { mutableStateOf<String?>(null) }
+        val genText by getter { genTextOverride ?: "Generate"}
 
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
 
@@ -320,7 +325,7 @@ internal fun App() {
                     onClick = {
                         CoroutineScope(context).launch {
                             canGenerate = false
-                            genText = "Generating. Please wait…"
+                            genTextOverride = "Creating…"
                             currentSigner = getSystemKeyStore().createSigningKey(ALIAS) {
                                 signer(SIGNER_CONFIG)
 
@@ -366,7 +371,7 @@ internal fun App() {
                             //loadPubKey().let { Napier.w { "PubKey retrieved from native: $it" } }
                             Napier.w { "Signing possible: ${currentKey?.isSuccess}" }
                             canGenerate = true
-                            genText = "Generate Key"
+                            genTextOverride = null
                         }
                     },
                     modifier = Modifier.padding(start = 16.dp)
@@ -379,7 +384,7 @@ internal fun App() {
                     onClick = {
                         CoroutineScope(context).launch {
                             canGenerate = false
-                            genText = "Loading Key. Please wait…"
+                            genTextOverride = "Loading…"
                             getSystemKeyStore().getSignerForKey(ALIAS, SIGNER_CONFIG).let {
                                 Napier.w { "Priv retrieved from native: $it" }
                                 currentSigner = it
@@ -389,12 +394,34 @@ internal fun App() {
                             //just to check
                             //loadPubKey().let { Napier.w { "PubKey retrieved from native: $it" } }
                             canGenerate = true
-                            genText = "Generate New Key"
+                            genTextOverride = null
+                        }
+                    },
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp)
+                ) {
+                    Text("Load")
+                }
+
+                Button(
+                    enabled = canGenerate,
+                    onClick = {
+                        CoroutineScope(context).launch {
+                            canGenerate = false
+                            genTextOverride = "Deleting…"
+                            try {
+                                getSystemKeyStore().deleteSigningKey(ALIAS)
+                            } catch (e: Throwable) {
+                                Napier.e("Failed to delete key", e)
+                            }
+                            currentSigner = null
+                            signatureData = null
+                            canGenerate = true
+                            genTextOverride = null
                         }
                     },
                     modifier = Modifier.padding(end = 16.dp)
                 ) {
-                    Text("Load Private Key")
+                    Text("Delete")
                 }
 
             }
@@ -419,15 +446,10 @@ internal fun App() {
                 onClick = {
 
                     Napier.w { "input: $inputData" }
-                    Napier.w { "signinKey: $currentKey" }
+                    Napier.w { "signingKey: $currentKey" }
                     CoroutineScope(context).launch {
                         val data = inputData.encodeToByteArray()
-                        getSystemKeyStore().getSignerForKey(ALIAS) {
-                            unlockPrompt {
-                                message = "We're signing a thing!"
-                                cancelText = "No! Stop!"
-                            }
-                        }
+                        currentSigner!!
                             .transform { it.sign(data) }
                             .also { signatureData = it; verifyState = null }
                     }
@@ -451,7 +473,6 @@ internal fun App() {
             if (verifyPossible) {
                 Button(
                     onClick = {
-                        Napier.w { "crt: $currentKey" }
                         CoroutineScope(context).launch {
                             val signer = currentSigner!!.getOrThrow()
                             val data = inputData.encodeToByteArray()
