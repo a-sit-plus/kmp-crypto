@@ -1,7 +1,7 @@
 import org.jetbrains.dokka.gradle.DokkaMultiModuleTask
 
 plugins {
-    id("at.asitplus.gradle.conventions") version "2.0.0+20240610"
+    id("at.asitplus.gradle.conventions") version "2.0.0+20240619"
     id("com.android.library") version "8.2.0" apply (false)
 }
 group = "at.asitplus.crypto"

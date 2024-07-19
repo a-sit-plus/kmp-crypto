@@ -10,6 +10,7 @@ import at.asitplus.crypto.ecmath.straussShamir
 import at.asitplus.crypto.provider.dsl.DSL
 import at.asitplus.crypto.provider.UnsupportedCryptoException
 import at.asitplus.crypto.provider.dsl.DSLConfigureFn
+import at.asitplus.recoverCatching
 
 class InvalidSignature(message: String): Throwable(message)
 
@@ -163,25 +164,22 @@ fun SignatureAlgorithm.platformVerifierFor
 
 private fun SignatureAlgorithm.verifierForImpl
             (publicKey: CryptoPublicKey, configure: ConfigurePlatformVerifier,
-             allowKotlin: Boolean): KmmResult<out Verifier> =
+             allowKotlin: Boolean): KmmResult<Verifier> =
     when (this) {
         is SignatureAlgorithm.ECDSA -> {
-            require(publicKey is CryptoPublicKey.EC)
-                { "Non-EC public key passed to ECDSA algorithm"}
-            verifierForImpl(publicKey, configure, allowKotlin)
+            if(publicKey !is CryptoPublicKey.EC)
+                KmmResult.failure(IllegalArgumentException("Non-EC public key passed to ECDSA algorithm"))
+            else
+                verifierForImpl(publicKey, configure, allowKotlin)
         }
         is SignatureAlgorithm.RSA -> {
-            require(publicKey is CryptoPublicKey.Rsa)
-                { "Non-RSA public key passed to RSA algorithm"}
-            verifierForImpl(publicKey, configure, allowKotlin)
+            if (publicKey !is CryptoPublicKey.Rsa)
+                KmmResult.failure(IllegalArgumentException("Non-RSA public key passed to RSA algorithm"))
+            else
+                verifierForImpl(publicKey, configure, allowKotlin)
         }
-        is SignatureAlgorithm.HMAC -> throw UnsupportedCryptoException("HMAC is unsupported")
-    }
-
-private fun <R, T:R> KmmResult<T>.recoverCatching(fn: (Throwable)->R): KmmResult<out R> =
-    when (val x = exceptionOrNull()) {
-        null -> this
-        else -> catching { fn(x) }
+        is SignatureAlgorithm.HMAC ->
+            KmmResult.failure(IllegalArgumentException("HMAC is unsupported"))
     }
 
 /**
@@ -213,7 +211,7 @@ fun SignatureAlgorithm.ECDSA.platformVerifierFor
 
 private fun SignatureAlgorithm.ECDSA.verifierForImpl
             (publicKey: CryptoPublicKey.EC, configure: ConfigurePlatformVerifier,
-             allowKotlin: Boolean): KmmResult<out Verifier.EC> =
+             allowKotlin: Boolean): KmmResult<Verifier.EC> =
     catching { PlatformECDSAVerifier(this, publicKey, configure) }
     .recoverCatching {
         if (allowKotlin && (it is UnsupportedCryptoException))
@@ -250,7 +248,7 @@ fun SignatureAlgorithm.RSA.platformVerifierFor
 
 private fun SignatureAlgorithm.RSA.verifierForImpl
             (publicKey: CryptoPublicKey.Rsa, configure: ConfigurePlatformVerifier,
-             allowKotlin: Boolean): KmmResult<out Verifier.RSA> =
+             allowKotlin: Boolean): KmmResult<Verifier.RSA> =
     catching { PlatformRSAVerifier(this, publicKey, configure) }
 
 /** @see [SignatureAlgorithm.verifierFor] */

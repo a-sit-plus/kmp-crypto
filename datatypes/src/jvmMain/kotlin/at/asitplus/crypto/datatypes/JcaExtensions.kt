@@ -43,7 +43,7 @@ private fun sigGetInstance(alg: String, provider: String?) =
         else -> Signature.getInstance(alg, provider)
     }
 /** Get a pre-configured JCA instance for this algorithm */
-fun SignatureAlgorithm.getJCASignatureInstance(provider: String? = null) = catching {
+fun SignatureAlgorithm.getJCASignatureInstance(provider: String? = null, isAndroid: Boolean = false) = catching {
     when (this) {
         is SignatureAlgorithm.ECDSA ->
             sigGetInstance("${this.digest.jcaAlgorithmComponent}withECDSA", provider)
@@ -52,10 +52,14 @@ fun SignatureAlgorithm.getJCASignatureInstance(provider: String? = null) = catch
         is SignatureAlgorithm.RSA -> when (this.padding) {
             RSAPadding.PKCS1 ->
                 sigGetInstance("${this.digest.jcaAlgorithmComponent}withRSA", provider)
-            RSAPadding.PSS ->
-                sigGetInstance("RSASSA-PSS", provider).also {
-                    it.setParameter(this.digest.jcaPSSParams)
-                }
+            RSAPadding.PSS -> when (isAndroid) {
+                true ->
+                    sigGetInstance("${this.digest.jcaAlgorithmComponent}withRSA/PSS", provider)
+                false ->
+                    sigGetInstance("RSASSA-PSS", provider).also {
+                        it.setParameter(this.digest.jcaPSSParams)
+                    }
+            }
         }
     }
 }

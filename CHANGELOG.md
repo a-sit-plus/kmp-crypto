@@ -165,6 +165,8 @@
 
 ### NEXT
 
+* KmmResult 1.7.0
+
 **Changes**
 * Add `provider` module that actually implements cryptography!
 * Add `COSE_Key` header to `CoseHeader`, defined in OpenID for Verifiable Credential Issuance draft 13

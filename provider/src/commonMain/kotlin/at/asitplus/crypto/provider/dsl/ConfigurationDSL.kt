@@ -64,7 +64,7 @@ object DSL {
          * Embeds a child; use as `val sub = child(::TypeOfSub)`.
          * Defaults to a default-constructed child.
          *
-         * User code will invoke as `child { }`.
+         * User code will invoke as `sub { }`.
          * This constructs a new child and configures it using the specified block.
          */
         protected fun <T: DSL.Data> child(factory: ()->T): Invokable<T,T> =
@@ -74,11 +74,22 @@ object DSL {
          * Embeds an optional child. Use as `val sub = childOrNull(::TypeOfSub)`.
          * Defaults to `null`.
          *
-         * User code will invoke as `child { }`
+         * User code will invoke as `sub { }`
          * This constructs a new child and configures it using the specified block.
          */
         protected fun <T: DSL.Data> childOrNull(factory: ()->T): Invokable<T?,T> =
             DirectHolder<T?>(null, factory)
+
+        /**
+         * Embeds an optional child. Use as `val sub = childOrDefault(::TypeOfSub) { ... }
+         * Defaults to a child pre-configured using the specified block.
+         *
+         * User code will invoke as `sub { }`
+         * This constructs a new child and configures it using the specified block.
+         * Note that the specified default block is **not** applied if user code configures the child.
+         */
+        protected fun <T: DSL.Data> childOrDefault(factory: ()->T, default: T.()->Unit): Invokable<T,T> =
+            DirectHolder<T>(factory().also(default), factory)
 
         /**
          * Specifies a generalized holder of type T.

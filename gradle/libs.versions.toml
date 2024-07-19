@@ -7,7 +7,7 @@ okio = "3.5.0"
 bignum = "0.3.10-SNAPSHOT"
 jose = "9.31"
 kotlinpoet = "1.16.0"
-kmmresult = "1.6.2"
+kmmresult = "1.7.0"
 runner = "1.5.2"
 
 [libraries]
